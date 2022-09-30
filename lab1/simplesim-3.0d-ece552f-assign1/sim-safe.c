@@ -71,6 +71,10 @@ static counter_t sim_num_RAW_hazard_q1;
 static counter_t sim_num_RAW_hazard_q2;
 /* ECE552 Assignment 1 - STATS COUNTERS - END */
 
+/* ECE552 Assignment 1 - BEGIN CODE*/
+status counter_t output_reg_ready_time[MD_TOTAL_REGS];
+/* ECE552 Assignment 1 - END CODE*/
+
 /*
  * This file implements a functional simulator.  This functional simulator is
  * the simplest, most user-friendly simulator in the simplescalar tool set.
@@ -307,6 +311,10 @@ sim_uninit(void)
 void
 sim_main(void)
 {
+  /* ECE552 Assignment 1 - BEGIN CODE*/
+  int r_out[2], r_in[3];
+  /* ECE552 Assignment 1 - END CODE*/
+
   md_inst_t inst;
   register md_addr_t addr;
   enum md_opcode op;
@@ -353,6 +361,8 @@ sim_main(void)
 	{
 #define DEFINST(OP,MSK,NAME,OPFORM,RES,FLAGS,O1,O2,I1,I2,I3)		\
 	case OP:							\
+          r_out[0] = (O1); r_out[1] = (O2); \
+          r_in[0] = (I1); r_in[1] = (I2); r_in[3] = (I3); \
           SYMCAT(OP,_IMPL);						\
           break;
 #define DEFLINK(OP,MSK,NAME,MASK,SHIFT)					\
@@ -365,6 +375,22 @@ sim_main(void)
 	default:
 	  panic("attempted to execute a bogus opcode");
       }
+
+      /* ECE552 Assignment 1 - BEGIN CODE*/
+
+      // If the current instruction plans on outputting anything,
+      // It will not be available until writeback.
+      int i_output;
+      for (i_output = 0; i_output < 2; i_output++) {
+        int reg = r_out[i_output];
+        // As long as this condition is true,
+        // The register is used by this instruction as an output.
+        if (reg != DNA) {
+          output_reg_ready_time[reg] = sim_num_insn + 2;
+        }
+      }
+
+      /* ECE552 Assignment 1 - END CODE*/
 
       if (fault != md_fault_none)
 	fatal("fault (%d) detected @ 0x%08p", fault, regs.regs_PC);
