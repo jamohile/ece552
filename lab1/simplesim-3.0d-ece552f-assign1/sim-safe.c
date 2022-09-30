@@ -79,6 +79,9 @@ static counter_t sim_num_RAW_hazard_q2;
 static counter_t sim_num_RAW_hazard_2cycle_q1;
 static counter_t sim_num_RAW_hazard_1cycle_q1;
 
+static counter_t sim_num_RAW_hazard_2cycle_q2;
+static counter_t sim_num_RAW_hazard_1cycle_q2;
+
 // Since q1 and q1 use different processors, 
 // We need different time tracking.
 static counter_t output_reg_ready_time_q1[MD_TOTAL_REGS];
@@ -399,8 +402,11 @@ sim_main(void)
       // Check if the current instruction depends on any outputs.
       int i_input;
  
-      bool hazard_1cycle = false;
-      bool hazard_2cycle = false;
+      bool hazard_1cycle_q1 = false;
+      bool hazard_2cycle_q1 = false;
+
+      bool hazard_1cycle_q2 = false;
+      bool hazard_2cycle_q2 = false;
 
       for (i_input = 0; i_input < 3; i_input++) {
         int input = r_in[i_input];
@@ -412,23 +418,31 @@ sim_main(void)
           // 2 cycle hazards take precedence over 1 cycle ones.
           // If we see one, we can stop looking - but otherwise, keep looking for one just in case.
           if (relative_ready_time == 2) {
-            hazard_2cycle = true;
+            hazard_2cycle_q1 = true;
             break;
           }
 
           if (relative_ready_time == 1) {
-            hazard_1cycle = true;
+            hazard_1cycle_q1 = true;
           }
         }
       }
 
       // If any hazards were found, note them.
-      if (hazard_2cycle) {
+      if (hazard_2cycle_q1) {
         sim_num_RAW_hazard_q1++;
         sim_num_RAW_hazard_2cycle_q1++;
-      } else if (hazard_1cycle) {
+      } else if (hazard_1cycle_q1) {
         sim_num_RAW_hazard_q1++;
         sim_num_RAW_hazard_1cycle_q1++;
+      }
+
+      if (hazard_2cycle_q2) {
+        sim_num_RAW_hazard_q2++;
+        sim_num_RAW_hazard_2cycle_q2++;
+      } else if (hazard_1cycle_q2) {
+        sim_num_RAW_hazard_q2++;
+        sim_num_RAW_hazard_1cycle_q2++;
       }
 
       // If the current instruction plans on outputting anything,
@@ -457,13 +471,18 @@ sim_main(void)
 
 
           // If this instruction is delayed, its output will be too.
-          if (hazard_2cycle) {
+          if (hazard_2cycle_q1) {
             output_ready_time_q1 += 2;
-            output_ready_time_q2 += 2;
-          } else if (hazard_1cycle) {
+          } else if (hazard_1cycle_q1) {
             output_ready_time_q1 += 1;
+          }
+
+          if (hazard_2cycle_q2) {
+            output_ready_time_q2 += 2;
+          } else if (hazard_1cycle_q2) {
             output_ready_time_q2 += 1;
           }
+
           output_reg_ready_time_q1[output] = output_ready_time_q1;
           output_reg_ready_time_q2[output] = output_ready_time_q2;
         }
