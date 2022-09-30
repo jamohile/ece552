@@ -414,19 +414,12 @@ sim_main(void)
       /* ECE552 Assignment 1 - BEGIN CODE*/
 
       // Check if the current instruction depends on any outputs.
-      int i_input;
- 
-      bool hazard_1cycle_q1 = false;
-      bool hazard_2cycle_q1 = false;
-
-      bool hazard_1cycle_q2 = false;
-      bool hazard_2cycle_q2 = false;
-
       int hazard_cycles_q1 = 0;
       int hazard_cycles_q2 = 0;
 
 
       // Check for RAW dependencies on q1 processor.
+      int i_input;
       for (i_input = 0; i_input < 3; i_input++) {
         int input = r_in[i_input];
         if (input != DNA) {
