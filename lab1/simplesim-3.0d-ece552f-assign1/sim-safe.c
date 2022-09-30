@@ -79,7 +79,10 @@ static counter_t sim_num_RAW_hazard_q2;
 static counter_t sim_num_RAW_hazard_2cycle_q1;
 static counter_t sim_num_RAW_hazard_1cycle_q1;
 
-static counter_t output_reg_ready_time[MD_TOTAL_REGS];
+// Since q1 and q1 use different processors, 
+// We need different time tracking.
+static counter_t output_reg_ready_time_q1[MD_TOTAL_REGS];
+static counter_t output_reg_ready_time_q2[MD_TOTAL_REGS];
 /* ECE552 Assignment 1 - END CODE*/
 
 /*
@@ -402,15 +405,13 @@ sim_main(void)
       for (i_input = 0; i_input < 3; i_input++) {
         int input = r_in[i_input];
         if (input != DNA) {
-          printf("found used input\n");
           // It's possible that this input is not ready yet.
           // If so, track the hazards it could case.
-          int relative_ready_time = output_reg_ready_time[input] - sim_num_insn;
+          int relative_ready_time = output_reg_ready_time_q1[input] - sim_num_insn;
 
           // 2 cycle hazards take precedence over 1 cycle ones.
           // If we see one, we can stop looking - but otherwise, keep looking for one just in case.
           if (relative_ready_time == 2) {
-            printf("hazard 2cycle\n");
             hazard_2cycle = true;
             break;
           }
@@ -438,15 +439,33 @@ sim_main(void)
         // As long as this condition is true,
         // The register is used by this instruction as an output.
         if (output != DNA) {
-          int output_ready_time = sim_num_insn + 3;
+          // The first processor is easy.
+          // All data becomes available during the writeback stage.
+          // We set these times from the perspective that we are currently in D.
+          int output_ready_time_q1 = sim_num_insn + 3;
+
+          // The second processor is more complex, however.
+          int output_ready_time_q2;
+          // If the data is coming from a load, it won't be available until W.
+          // Also, recall that this processor has two exec stages.
+          if (MD_OP_FLAGS(op) & F_LOAD) {
+            output_ready_time_q2 = sim_num_insn + 4;
+          } else {
+            // Otherwise, the data is available in M.
+            output_ready_time_q2 = sim_num_insn + 3;
+          }
+
 
           // If this instruction is delayed, its output will be too.
           if (hazard_2cycle) {
-            output_ready_time += 2;
+            output_ready_time_q1 += 2;
+            output_ready_time_q2 += 2;
           } else if (hazard_1cycle) {
-            output_ready_time += 1;
+            output_ready_time_q1 += 1;
+            output_ready_time_q2 += 1;
           }
-          output_reg_ready_time[output] = output_ready_time;
+          output_reg_ready_time_q1[output] = output_ready_time_q1;
+          output_reg_ready_time_q2[output] = output_ready_time_q2;
         }
       }
 
