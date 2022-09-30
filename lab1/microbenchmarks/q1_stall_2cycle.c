@@ -10,10 +10,10 @@ int main(void) {
   int i;
   // Now, have to be careful here.
   // This is easily optimized out.
-  for (i = 0; i < 1E7; i++) {
+  for (i = 0; i < 1E5; i++) {
     // The goal here is just to make a simple write, and a simple read.
     a += 1;
     b = a;
   }
-  return 0;
+  return a + b;
 }
