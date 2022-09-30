@@ -86,6 +86,10 @@ static counter_t sim_num_RAW_hazard_1cycle_q2;
 // We need different time tracking.
 static counter_t output_reg_ready_time_q1[MD_TOTAL_REGS];
 static counter_t output_reg_ready_time_q2[MD_TOTAL_REGS];
+
+// We use global timestamps, that account for stalls, to make propagated stall handling easier.
+static counter_t global_timestamp_q1;
+static counter_t global_timestamp_q2;
 /* ECE552 Assignment 1 - END CODE*/
 
 /*
@@ -374,6 +378,8 @@ sim_main(void)
 
       /* keep an instruction count */
       sim_num_insn++;
+      global_timestamp_q1++;
+      global_timestamp_q2++;
 
       /* set default reference address and access mode */
       addr = 0; is_write = FALSE;
@@ -426,7 +432,7 @@ sim_main(void)
         if (input != DNA) {
           // It's possible that this input is not ready yet.
           // If so, track the hazards it could case.
-          int relative_ready_time = output_reg_ready_time_q1[input] - sim_num_insn;
+          int relative_ready_time = output_reg_ready_time_q1[input] - global_timestamp_q1;
 
           // 2 cycle hazards take precedence over 1 cycle ones.
           // If we see one, we can stop looking - but otherwise, keep looking for one just in case.
@@ -447,7 +453,7 @@ sim_main(void)
         if (input != DNA) {
           // It's possible that this input is not ready yet.
           // If so, track the hazards it could case.
-          int relative_ready_time = output_reg_ready_time_q1[input] - sim_num_insn;
+          int relative_ready_time = output_reg_ready_time_q2[input] - global_timestamp_q2;
 
           // Unlike the Q1 proc, forwarding and bypassing makes this more complex.
           // While most instructions need data by the X1 stage, stores can wait until M, for data being stored.
@@ -487,6 +493,10 @@ sim_main(void)
         sim_num_RAW_hazard_1cycle_q2++;
       }
 
+      // If this instruction is delayed, so is the global time.
+      global_timestamp_q1 += hazard_cycles_q1;
+      global_timestamp_q2 += hazard_cycles_q2;
+
       // If the current instruction plans on outputting anything,
       // It will not be available until writeback.
       int i_output;
@@ -498,23 +508,18 @@ sim_main(void)
           // The first processor is easy.
           // All data becomes available during the writeback stage.
           // We set these times from the perspective that we are currently in D.
-          int output_ready_time_q1 = sim_num_insn + 3;
+          int output_ready_time_q1 = global_timestamp_q1 + 3;
 
           // The second processor is more complex, however.
           int output_ready_time_q2;
           // If the data is coming from a load, it won't be available until W.
           // Also, recall that this processor has two exec stages.
           if (MD_OP_FLAGS(op) & F_LOAD) {
-            output_ready_time_q2 = sim_num_insn + 4;
+            output_ready_time_q2 = global_timestamp_q2 + 4;
           } else {
             // Otherwise, the data is available in M.
-            output_ready_time_q2 = sim_num_insn + 3;
+            output_ready_time_q2 = global_timestamp_q2 + 3;
           }
-
-
-          // If this instruction is delayed, its output will be too.
-          output_ready_time_q1 += hazard_cycles_q1;
-          output_ready_time_q2 += hazard_cycles_q2;
 
           output_reg_ready_time_q1[output] = output_ready_time_q1;
           output_reg_ready_time_q2[output] = output_ready_time_q2;
