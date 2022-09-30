@@ -164,6 +164,14 @@ sim_reg_stats(struct stat_sdb_t *sdb)
 		   "total number of RAW hazards (q1)",
 		   &sim_num_RAW_hazard_q1, sim_num_RAW_hazard_q1, NULL);
 
+    stat_reg_counter(sdb, "sim_num_RAW_hazard_2cycle_q2", 
+       "total number of 2-cycle RAW hazards (q2)",
+       &sim_num_RAW_hazard_2cycle_q2, sim_num_RAW_hazard_2cycle_q2, NULL);
+
+  stat_reg_counter(sdb, "sim_num_RAW_hazard_1cycle_q2", 
+       "total number of 1-cycle RAW hazards (q2)",
+       &sim_num_RAW_hazard_1cycle_q2, sim_num_RAW_hazard_1cycle_q2, NULL);
+
   stat_reg_counter(sdb, "sim_num_RAW_hazard_q2",
 		   "total number of RAW hazards (q2)",
 		   &sim_num_RAW_hazard_q2, sim_num_RAW_hazard_q2, NULL);
@@ -174,7 +182,7 @@ sim_reg_stats(struct stat_sdb_t *sdb)
 
   stat_reg_formula(sdb, "CPI_from_RAW_hazard_q2",
 		   "CPI from RAW hazard (q2)",
-		   "1" /* ECE552 - MUST ADD YOUR FORMULA */, NULL);
+		   "1 + (2*sim_num_RAW_hazard_2cycle_q2 + 1*sim_num_RAW_hazard_1cycle_q2) / sim_num_insn", NULL);
 
   /* ECE552 Assignment 1 - END CODE */
 
@@ -408,6 +416,8 @@ sim_main(void)
       bool hazard_1cycle_q2 = false;
       bool hazard_2cycle_q2 = false;
 
+
+      // Check for RAW dependencies on q1 processor.
       for (i_input = 0; i_input < 3; i_input++) {
         int input = r_in[i_input];
         if (input != DNA) {
@@ -425,6 +435,35 @@ sim_main(void)
           if (relative_ready_time == 1) {
             hazard_1cycle_q1 = true;
           }
+        }
+      }
+
+      // Check for raw dependencies on q2 processor.
+      for (i_input = 0; i_input < 3; i_input++) {
+        int input = r_in[i_input];
+        if (input != DNA) {
+          // It's possible that this input is not ready yet.
+          // If so, track the hazards it could case.
+          int relative_ready_time = output_reg_ready_time_q1[input] - sim_num_insn;
+
+          // Unlike the Q1 proc, forwarding and bypassing makes this more complex.
+          // While most instructions need data by the X1 stage, stores can wait until M, for data being stored.
+          // These stores use input I1.
+          // It so happens that these never need a stall.
+          if (i_input == 0 && (MD_OP_FLAGS(op) & F_STORE)) {
+            continue;
+          } else {
+            // All other instructions need data in the X1 stage.
+            if (relative_ready_time == 3) {
+              hazard_2cycle_q2 = true;
+              break;
+            }
+            if (relative_ready_time == 2) {
+              hazard_1cycle_q2 = true;
+            }
+            // There will never be a one cycle relative ready, since X2 exists.
+          }
+
         }
       }
 
