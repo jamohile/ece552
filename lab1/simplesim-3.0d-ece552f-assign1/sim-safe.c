@@ -53,6 +53,10 @@
 #include <stdlib.h>
 #include <math.h>
 
+/* ECE552 Assignment 1 - BEGIN CODE*/
+#include <stdbool.h>
+/* ECE552 Assignment 1 - END CODE*/
+
 #include "host.h"
 #include "misc.h"
 #include "machine.h"
@@ -75,7 +79,7 @@ static counter_t sim_num_RAW_hazard_q2;
 static counter_t sim_num_RAW_hazard_2cycle_q1;
 static counter_t sim_num_RAW_hazard_1cycle_q1;
 
-status counter_t output_reg_ready_time[MD_TOTAL_REGS];
+static counter_t output_reg_ready_time[MD_TOTAL_REGS];
 /* ECE552 Assignment 1 - END CODE*/
 
 /*
@@ -142,6 +146,14 @@ sim_reg_stats(struct stat_sdb_t *sdb)
 
   /* ECE552 Assignment 1 - BEGIN CODE */
 
+  stat_reg_counter(sdb, "sim_num_RAW_hazard_2cycle_q1", 
+       "total number of 2-cycle RAW hazards (q1)",
+       &sim_num_RAW_hazard_2cycle_q1, sim_num_RAW_hazard_2cycle_q1, NULL);
+
+  stat_reg_counter(sdb, "sim_num_RAW_hazard_1cycle_q1", 
+       "total number of 1-cycle RAW hazards (q1)",
+       &sim_num_RAW_hazard_1cycle_q1, sim_num_RAW_hazard_1cycle_q1, NULL);
+       
   stat_reg_counter(sdb, "sim_num_RAW_hazard_q1",
 		   "total number of RAW hazards (q1)",
 		   &sim_num_RAW_hazard_q1, sim_num_RAW_hazard_q1, NULL);
@@ -365,7 +377,7 @@ sim_main(void)
 #define DEFINST(OP,MSK,NAME,OPFORM,RES,FLAGS,O1,O2,I1,I2,I3)		\
 	case OP:							\
           r_out[0] = (O1); r_out[1] = (O2); \
-          r_in[0] = (I1); r_in[1] = (I2); r_in[3] = (I3); \
+          r_in[0] = (I1); r_in[1] = (I2); r_in[2] = (I3); \
           SYMCAT(OP,_IMPL);						\
           break;
 #define DEFLINK(OP,MSK,NAME,MASK,SHIFT)					\
@@ -390,6 +402,7 @@ sim_main(void)
       for (i_input = 0; i_input < 3; i_input++) {
         int input = r_in[i_input];
         if (input != DNA) {
+          printf("found used input\n");
           // It's possible that this input is not ready yet.
           // If so, track the hazards it could case.
           int relative_ready_time = output_reg_ready_time[input] - sim_num_insn;
@@ -397,6 +410,7 @@ sim_main(void)
           // 2 cycle hazards take precedence over 1 cycle ones.
           // If we see one, we can stop looking - but otherwise, keep looking for one just in case.
           if (relative_ready_time == 2) {
+            printf("hazard 2cycle\n");
             hazard_2cycle = true;
             break;
           }
@@ -409,9 +423,9 @@ sim_main(void)
 
       // If any hazards were found, note them.
       if (hazard_2cycle) {
-        sim_num_RAW_hazard_2cycle_q1 += 1;
+        sim_num_RAW_hazard_2cycle_q1++;
       } else if (hazard_1cycle) {
-        sim_num_RAW_hazard_1cycle_q1 += 1;
+        sim_num_RAW_hazard_1cycle_q1++;
       }
 
       // If the current instruction plans on outputting anything,
@@ -422,7 +436,7 @@ sim_main(void)
         // As long as this condition is true,
         // The register is used by this instruction as an output.
         if (output != DNA) {
-          int output_ready_time = sim_num_insn + 2;
+          int output_ready_time = sim_num_insn + 3;
 
           // If this instruction is delayed, its output will be too.
           if (hazard_2cycle) {
