@@ -3,17 +3,31 @@
 // Since this processor is not bypassed/forwarded, it does not matter what the instrs are:
 // No matter what, data becomes available during writeback, and must be consumed during decode.
 
+// MUST be built using O2 optimization.
+
 int main(void) {
   int a = 0;
   int b = 0;
 
-  int i;
-  // Now, have to be careful here.
-  // This is easily optimized out.
-  for (i = 0; i < 1E5; i++) {
-    // The goal here is just to make a simple write, and a simple read.
+  // Even though this is very simple, it is *very* finicky.
+  // We use a while instead of a for, because otherwise the compiler is hard to work it.
+  // It tries to optimize the placement of the increment...which messes with us.
+  while (a < 100000) {
+    // We set a, this is our 'write'.
     a += 1;
-    b = a;
+    // Make b based on a, this is our read.
+    // This is actually why we use the 'while'.
+    // We're trying to cause a two-cycle stall,
+    // but in the for loop case: gcc is smart, and places the increment between these two instrs.
+    b += a;
+
+    // Since this loop is so short, we'd probably get some level of RAW just through the loop op.
+    // So, we add a bunch of noops to separate the top part.
+    // Luckily, GCC is willing to perform the loop checks *after* these nops...unlike the for loop.
+    asm("nop");
+    asm("nop");
+    asm("nop");
   }
+
   return a + b;
 }
