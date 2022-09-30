@@ -1,2 +1,9 @@
 **/a.out
 **/microbenchmarks/**/*.s
+**/*.o
+config.txt
+sim-safe
+sysprobe
+**/*.a
+**/out
+output.log

@@ -9,10 +9,10 @@ int main(void) {
   int a = 0;
   int b = 0;
 
-  // Even though this is very simple, it is *very* finicky.
-  // We use a while instead of a for, because otherwise the compiler is hard to work it.
-  // It tries to optimize the placement of the increment...which messes with us.
-  while (a < 100000) {
+  // // Even though this is very simple, it is *very* finicky.
+  // // We use a while instead of a for, because otherwise the compiler is hard to work it.
+  // // It tries to optimize the placement of the increment...which messes with us.
+  while (a < 1000000) {
     // We set a, this is our 'write'.
     a += 1;
     // Make b based on a, this is our read.
