@@ -416,6 +416,9 @@ sim_main(void)
       bool hazard_1cycle_q2 = false;
       bool hazard_2cycle_q2 = false;
 
+      int hazard_cycles_q1 = 0;
+      int hazard_cycles_q2 = 0;
+
 
       // Check for RAW dependencies on q1 processor.
       for (i_input = 0; i_input < 3; i_input++) {
@@ -428,12 +431,12 @@ sim_main(void)
           // 2 cycle hazards take precedence over 1 cycle ones.
           // If we see one, we can stop looking - but otherwise, keep looking for one just in case.
           if (relative_ready_time == 2) {
-            hazard_2cycle_q1 = true;
+            hazard_cycles_q1 = 2;
             break;
           }
 
           if (relative_ready_time == 1) {
-            hazard_1cycle_q1 = true;
+            hazard_cycles_q1 = 1;
           }
         }
       }
@@ -455,11 +458,11 @@ sim_main(void)
           } else {
             // All other instructions need data in the X1 stage.
             if (relative_ready_time == 3) {
-              hazard_2cycle_q2 = true;
+              hazard_cycles_q2 = 2;
               break;
             }
             if (relative_ready_time == 2) {
-              hazard_1cycle_q2 = true;
+              hazard_cycles_q2 = 1;
             }
             // There will never be a one cycle relative ready, since X2 exists.
           }
@@ -468,18 +471,18 @@ sim_main(void)
       }
 
       // If any hazards were found, note them.
-      if (hazard_2cycle_q1) {
+      if (hazard_cycles_q1 == 2) {
         sim_num_RAW_hazard_q1++;
         sim_num_RAW_hazard_2cycle_q1++;
-      } else if (hazard_1cycle_q1) {
+      } else if (hazard_cycles_q1 == 1) {
         sim_num_RAW_hazard_q1++;
         sim_num_RAW_hazard_1cycle_q1++;
       }
 
-      if (hazard_2cycle_q2) {
+      if (hazard_cycles_q2 == 2) {
         sim_num_RAW_hazard_q2++;
         sim_num_RAW_hazard_2cycle_q2++;
-      } else if (hazard_1cycle_q2) {
+      } else if (hazard_cycles_q2 == 1) {
         sim_num_RAW_hazard_q2++;
         sim_num_RAW_hazard_1cycle_q2++;
       }
@@ -510,17 +513,8 @@ sim_main(void)
 
 
           // If this instruction is delayed, its output will be too.
-          if (hazard_2cycle_q1) {
-            output_ready_time_q1 += 2;
-          } else if (hazard_1cycle_q1) {
-            output_ready_time_q1 += 1;
-          }
-
-          if (hazard_2cycle_q2) {
-            output_ready_time_q2 += 2;
-          } else if (hazard_1cycle_q2) {
-            output_ready_time_q2 += 1;
-          }
+          output_ready_time_q1 += hazard_cycles_q1;
+          output_ready_time_q2 += hazard_cycles_q2;
 
           output_reg_ready_time_q1[output] = output_ready_time_q1;
           output_reg_ready_time_q2[output] = output_ready_time_q2;
