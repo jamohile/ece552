@@ -164,7 +164,7 @@ sim_reg_stats(struct stat_sdb_t *sdb)
 
   stat_reg_formula(sdb, "CPI_from_RAW_hazard_q1",
 		   "CPI from RAW hazard (q1)",
-		   "1" /* ECE552 - MUST ADD YOUR FORMULA */, NULL);
+		   "1 + (2*sim_num_RAW_hazard_2cycle_q1 + 1*sim_num_RAW_hazard_1cycle_q1) / sim_num_insn", NULL);
 
   stat_reg_formula(sdb, "CPI_from_RAW_hazard_q2",
 		   "CPI from RAW hazard (q2)",
@@ -423,8 +423,10 @@ sim_main(void)
 
       // If any hazards were found, note them.
       if (hazard_2cycle) {
+        sim_num_RAW_hazard_q1++;
         sim_num_RAW_hazard_2cycle_q1++;
       } else if (hazard_1cycle) {
+        sim_num_RAW_hazard_q1++;
         sim_num_RAW_hazard_1cycle_q1++;
       }
 
