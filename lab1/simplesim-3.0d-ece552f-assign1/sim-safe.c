@@ -72,6 +72,9 @@ static counter_t sim_num_RAW_hazard_q2;
 /* ECE552 Assignment 1 - STATS COUNTERS - END */
 
 /* ECE552 Assignment 1 - BEGIN CODE*/
+static counter_t sim_num_RAW_hazard_2cycle_q1;
+static counter_t sim_num_RAW_hazard_1cycle_q1;
+
 status counter_t output_reg_ready_time[MD_TOTAL_REGS];
 /* ECE552 Assignment 1 - END CODE*/
 
@@ -378,15 +381,56 @@ sim_main(void)
 
       /* ECE552 Assignment 1 - BEGIN CODE*/
 
+      // Check if the current instruction depends on any outputs.
+      int i_input;
+ 
+      bool hazard_1cycle = false;
+      bool hazard_2cycle = false;
+
+      for (i_input = 0; i_input < 3; i_input++) {
+        int input = r_in[i_input];
+        if (input != DNA) {
+          // It's possible that this input is not ready yet.
+          // If so, track the hazards it could case.
+          int relative_ready_time = output_reg_ready_time[input] - sim_num_insn;
+
+          // 2 cycle hazards take precedence over 1 cycle ones.
+          // If we see one, we can stop looking - but otherwise, keep looking for one just in case.
+          if (relative_ready_time == 2) {
+            hazard_2cycle = true;
+            break;
+          }
+
+          if (relative_ready_time == 1) {
+            hazard_1cycle = true;
+          }
+        }
+      }
+
+      // If any hazards were found, note them.
+      if (hazard_2cycle) {
+        sim_num_RAW_hazard_2cycle_q1 += 1;
+      } else if (hazard_1cycle) {
+        sim_num_RAW_hazard_1cycle_q1 += 1;
+      }
+
       // If the current instruction plans on outputting anything,
       // It will not be available until writeback.
       int i_output;
       for (i_output = 0; i_output < 2; i_output++) {
-        int reg = r_out[i_output];
+        int output = r_out[i_output];
         // As long as this condition is true,
         // The register is used by this instruction as an output.
-        if (reg != DNA) {
-          output_reg_ready_time[reg] = sim_num_insn + 2;
+        if (output != DNA) {
+          int output_ready_time = sim_num_insn + 2;
+
+          // If this instruction is delayed, its output will be too.
+          if (hazard_2cycle) {
+            output_ready_time += 2;
+          } else if (hazard_1cycle) {
+            output_ready_time += 1;
+          }
+          output_reg_ready_time[output] = output_ready_time;
         }
       }
 
