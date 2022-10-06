@@ -378,8 +378,11 @@ sim_main(void)
 
       /* keep an instruction count */
       sim_num_insn++;
+
+  /* ECE552 Assignment 1 - BEGIN CODE*/
       global_timestamp_q1++;
       global_timestamp_q2++;
+  /* ECE552 Assignment 1 - END CODE*/
 
       /* set default reference address and access mode */
       addr = 0; is_write = FALSE;
@@ -396,8 +399,10 @@ sim_main(void)
 	{
 #define DEFINST(OP,MSK,NAME,OPFORM,RES,FLAGS,O1,O2,I1,I2,I3)		\
 	case OP:							\
+        /* ECE552 Assignment 1 - BEGIN CODE*/
           r_out[0] = (O1); r_out[1] = (O2); \
           r_in[0] = (I1); r_in[1] = (I2); r_in[2] = (I3); \
+        /* ECE552 Assignment 1 - BEGIN CODE*/
           SYMCAT(OP,_IMPL);						\
           break;
 #define DEFLINK(OP,MSK,NAME,MASK,SHIFT)					\
