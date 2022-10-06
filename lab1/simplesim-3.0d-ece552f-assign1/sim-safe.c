@@ -397,14 +397,14 @@ sim_main(void)
 
       switch (op)
 	{
+/* ECE552 Assignment 1 - BEGIN CODE*/
 #define DEFINST(OP,MSK,NAME,OPFORM,RES,FLAGS,O1,O2,I1,I2,I3)		\
 	case OP:							\
-        /* ECE552 Assignment 1 - BEGIN CODE*/
           r_out[0] = (O1); r_out[1] = (O2); \
           r_in[0] = (I1); r_in[1] = (I2); r_in[2] = (I3); \
-        /* ECE552 Assignment 1 - BEGIN CODE*/
           SYMCAT(OP,_IMPL);						\
           break;
+/* ECE552 Assignment 1 - BEGIN CODE*/
 #define DEFLINK(OP,MSK,NAME,MASK,SHIFT)					\
         case OP:							\
           panic("attempted to execute a linking opcode");
