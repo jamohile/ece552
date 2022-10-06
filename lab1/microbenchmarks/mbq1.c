@@ -1,3 +1,8 @@
+/*
+ * A combined benchmark to test 1 and 2 cycle stalls on the q1 processor.
+ * This must be built using -O2 optimization.
+*/
+
 // Number of times to repeat benchmark.
 // Note: it's important to use the raw number instead of 1eX notation.
 //       that becomes a float, with extra instructions.
@@ -31,10 +36,10 @@ int main(void) {
   // Force a two-cycle stall on each iteration.
   // This is caused by an immediate data access.
   while (a < X) {
-    a += 1;
+    a += 1; // WRITE
     // In the for loop case, GCC was smart enough to add the loop-increment here,
     // Which turned this into a 1-cycle stall.
-    b += a;
+    b += a; // READ
 
     RAW_BUFFER();
   }
@@ -42,12 +47,13 @@ int main(void) {
   // Force a 1-cycle stall on each iteration.
   // This is caused by a data access separated by one instruction.
   while (c < X) {
-    c += 1;
+    c += 1; // WRITE
     asm("nop");
-    d += c;
+    d += c; // READ
 
     RAW_BUFFER();
   }
 
+  // Prevent optimization out of these variables.
   return a + b + c + d;
 }
