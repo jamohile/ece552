@@ -127,9 +127,7 @@ History2Level bhts_2level[NUM_BHT_2LEVEL];
 // We have several PHTs, each of which contain several pattern-aware counters.
 Counter2BitSat phts_2level[NUM_PHT_2LEVEL][NUM_PATTERNS_2LEVEL];
 
-void InitPredictor_2level() {
-
-}
+void InitPredictor_2level() {}
 
 bool GetPrediction_2level(UINT32 PC) {
   auto pc = (struct keyed_pc_2level*) &PC;
