@@ -45,9 +45,13 @@ class Counter2BitSat {
       } else {
         switch (state) {
           case STRONG_NOT_TAKEN:  state = WEAK_NOT_TAKEN;
+            break;
           case WEAK_NOT_TAKEN:    state = WEAK_TAKEN;
+            break;
           case WEAK_TAKEN:        state = WEAK_NOT_TAKEN;
+            break;
           case STRONG_TAKEN:      state = WEAK_TAKEN;
+            break;
         }
       }
     }
@@ -123,21 +127,23 @@ History2Level bhts_2level[NUM_BHT_2LEVEL];
 // We have several PHTs, each of which contain several pattern-aware counters.
 Counter2BitSat phts_2level[NUM_PHT_2LEVEL][NUM_PATTERNS_2LEVEL];
 
-void InitPredictor_2level() {}
+void InitPredictor_2level() {
+
+}
 
 bool GetPrediction_2level(UINT32 PC) {
   auto pc = (struct keyed_pc_2level*) &PC;
-  auto history = bhts_2level[pc->bht];
+  auto history = &bhts_2level[pc->bht];
 
-  return phts_2level[pc->pht][history.get()].predict();
+  return phts_2level[pc->pht][history->get()].predict();
 }
 
 void UpdatePredictor_2level(UINT32 PC, bool resolveDir, bool predDir, UINT32 branchTarget) {
   auto pc = (struct keyed_pc_2level*) &PC;
-  auto history = bhts_2level[pc->bht];
+  auto history = &bhts_2level[pc->bht];
 
-  phts_2level[pc->pht][history.get()].update(resolveDir == predDir);
-  history.update(resolveDir);
+  phts_2level[pc->pht][history->get()].update(resolveDir == predDir);
+  history->update(resolveDir);
 }
 
 /////////////////////////////////////////////////////////////
