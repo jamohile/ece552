@@ -89,7 +89,7 @@ void UpdatePredictor_2bitsat(UINT32 PC, bool resolveDir, bool predDir, UINT32 br
 
 struct {
   struct {
-    bool history[BITS_HISTORY_BHT_2LEVEL];
+    unsigned int history : BITS_HISTORY_BHT_2LEVEL;
   } entries[NUM_BHT_2LEVEL];
 } bhts_2level = {0};
 
@@ -117,7 +117,7 @@ bool GetPrediction_2level(UINT32 PC) {
 
   // TODO: check if this cast is OK.
   auto history = bhts_2level.entries[key_bht].history;
-  auto status = phts_2level.entries[key_pht].patterns[*(int*)history].status;
+  auto status = phts_2level.entries[key_pht].patterns[history].status;
 
   if (status >= WEAK_TAKEN) {
     return TAKEN;
@@ -130,13 +130,13 @@ void UpdatePredictor_2level(UINT32 PC, bool resolveDir, bool predDir, UINT32 bra
   int key_bht = (PC >> 3) & MASK_KEY_BHT_2LEVEL;
   int key_pht = PC & MASK_KEY_PHT_2LEVEL;
 
-  auto history = (int*) bhts_2level.entries[key_bht].history;
+  auto history = bhts_2level.entries[key_bht].history;
 
   // Update pattern counter.
-  UpdateCounter2BitSat(&phts_2level.entries[key_pht].patterns[*history].status, resolveDir == predDir);
+  UpdateCounter2BitSat(&phts_2level.entries[key_pht].patterns[history].status, resolveDir == predDir);
 
   // Update history.
-  *history = (*history << 1) | resolveDir;
+  bhts_2level.entries[key_bht].history = (history << 1) | resolveDir;
 }
 
 /////////////////////////////////////////////////////////////
