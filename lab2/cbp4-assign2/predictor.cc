@@ -1,18 +1,22 @@
 #include "predictor.h"
 
+#include <cmath>
+
 /////////////////////////////////////////////////////////////
 // 2bitsat
 /////////////////////////////////////////////////////////////
 
 // The total space allocated to the 2bitsat prediction table.
 #define BITS_2BITSAT (8192)
-
 #define ENTRIES_2BITSAT (BITS_2BITSAT / 2)
 
-// We use the bottom X bits of each PC as our index bits.
-// The number of bits is set to equal the number of entries we have available above.
-// Constructing the mask is a nice little bit trick, try it on paper.
-#define MASK_KEY_2BITSAT (ENTRIES_2BITSAT - 1)
+// Set as log2 of number of entries,
+// due to CPP limits, can't be auto-generated.
+#define BITS_KEY_2BITSAT (12)
+
+struct keyed_pc_2bitsat {
+  unsigned int key : BITS_KEY_2BITSAT;
+};
 
 enum Counter2BitSat {
   STRONG_NOT_TAKEN = 0,
@@ -59,17 +63,17 @@ void InitPredictor_2bitsat() {
 }
 
 bool GetPrediction_2bitsat(UINT32 PC) {
-  int key = MASK_KEY_2BITSAT & PC;
-
-  if (prediction_table_2bitsat.entries[key].status >= WEAK_TAKEN) {
+  auto pc = (struct keyed_pc_2bitsat*) &PC;
+ 
+  if (prediction_table_2bitsat.entries[pc->key].status >= WEAK_TAKEN) {
     return TAKEN;
   }
   return NOT_TAKEN;
 }
 
 void UpdatePredictor_2bitsat(UINT32 PC, bool resolveDir, bool predDir, UINT32 branchTarget) {
-  int key = MASK_KEY_2BITSAT & PC;
-  UpdateCounter2BitSat(&prediction_table_2bitsat.entries[key].status, resolveDir == predDir);
+  auto pc = (struct keyed_pc_2bitsat*) &PC;
+  UpdateCounter2BitSat(&prediction_table_2bitsat.entries[pc->key].status, resolveDir == predDir);
 }
 
 /////////////////////////////////////////////////////////////
@@ -80,12 +84,19 @@ void UpdatePredictor_2bitsat(UINT32 PC, bool resolveDir, bool predDir, UINT32 br
 #define BITS_HISTORY_BHT_2LEVEL (6)
 #define NUM_PHT_2LEVEL (8)
 
-// Number of unique patterns to maintain history for, per PHT.
-// This must be set as 2 ** BITS_HISTORY_LEVEL
-#define PATTERNS_2LEVEL (64)
 
-#define MASK_KEY_BHT_2LEVEL (NUM_BHT_2LEVEL - 1)
-#define MASK_KEY_PHT_2LEVEL (NUM_PHT_2LEVEL - 1)
+#define NUM_PATTERNS_2LEVEL ((int) pow(2, BITS_HISTORY_BHT_2LEVEL))
+
+// Must be set based on the log2 of BHTs/PHTs
+// Cannot do at compile time due to CPP limitations.
+#define BITS_KEY_BHT_2LEVEL (9)
+#define BITS_KEY_PHT_2LEVEL (3)
+
+
+struct keyed_pc_2level {
+  unsigned int bht : BITS_KEY_BHT_2LEVEL;
+  unsigned int pht : BITS_KEY_PHT_2LEVEL;
+};
 
 struct {
   struct {
@@ -97,27 +108,24 @@ struct {
   struct {
     struct {
       Counter2BitSat status;
-    } patterns [PATTERNS_2LEVEL];
+    } patterns [NUM_PATTERNS_2LEVEL];
   } entries[NUM_PHT_2LEVEL];
 } phts_2level;
 
 void InitPredictor_2level() {
   // Initialize all pattern predictors.
   for (int i = 0; i < NUM_PHT_2LEVEL; i++) {
-    for (int j = 0; j < PATTERNS_2LEVEL; j++) {
+    for (int j = 0; j < NUM_PATTERNS_2LEVEL; j++) {
       phts_2level.entries[i].patterns[j].status = WEAK_NOT_TAKEN;
     }
   }
 }
 
 bool GetPrediction_2level(UINT32 PC) {
-  // TODO: I don't like that this offset is hardcoded.
-  int key_bht = (PC >> 3) & MASK_KEY_BHT_2LEVEL;
-  int key_pht = PC & MASK_KEY_PHT_2LEVEL;
+  auto pc = (struct keyed_pc_2level*) &PC;
 
-  // TODO: check if this cast is OK.
-  auto history = bhts_2level.entries[key_bht].history;
-  auto status = phts_2level.entries[key_pht].patterns[history].status;
+  auto history = bhts_2level.entries[pc->bht].history;
+  auto status = phts_2level.entries[pc->pht].patterns[history].status;
 
   if (status >= WEAK_TAKEN) {
     return TAKEN;
@@ -127,16 +135,15 @@ bool GetPrediction_2level(UINT32 PC) {
 }
 
 void UpdatePredictor_2level(UINT32 PC, bool resolveDir, bool predDir, UINT32 branchTarget) {
-  int key_bht = (PC >> 3) & MASK_KEY_BHT_2LEVEL;
-  int key_pht = PC & MASK_KEY_PHT_2LEVEL;
+  auto pc = (struct keyed_pc_2level*) &PC;
 
-  auto history = bhts_2level.entries[key_bht].history;
+  auto history = bhts_2level.entries[pc->bht].history;
 
   // Update pattern counter.
-  UpdateCounter2BitSat(&phts_2level.entries[key_pht].patterns[history].status, resolveDir == predDir);
+  UpdateCounter2BitSat(&phts_2level.entries[pc->pht].patterns[history].status, resolveDir == predDir);
 
   // Update history.
-  bhts_2level.entries[key_bht].history = (history << 1) | resolveDir;
+  bhts_2level.entries[pc->bht].history = (history << 1) | resolveDir;
 }
 
 /////////////////////////////////////////////////////////////
