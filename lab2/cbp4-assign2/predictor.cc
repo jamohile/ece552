@@ -21,23 +21,23 @@ enum Counter2BitSat {
   STRONG_TAKEN = 3
 };
 
-struct __attribute__((__packed__)) entry_2bitsat {
-  Counter2BitSat status : 2;
-};
-
-struct entry_2bitsat prediction_table_2bitsat [ENTRIES_2BITSAT];
+struct __attribute__((__packed__)) {
+  struct {
+    Counter2BitSat status : 2;
+  } entries[ENTRIES_2BITSAT];
+} prediction_table_2bitsat;
 
 void InitPredictor_2bitsat() {
   // Initialize all prediction table entries to same value.
   for (int i = 0; i < ENTRIES_2BITSAT; i++) {
-    prediction_table_2bitsat[i].status = WEAK_NOT_TAKEN;
+    prediction_table_2bitsat.entries[i].status = WEAK_NOT_TAKEN;
   }
 }
 
 bool GetPrediction_2bitsat(UINT32 PC) {
   int key = MASK_KEY_2BITSAT & PC;
 
-  if (prediction_table_2bitsat[key].status >= WEAK_TAKEN) {
+  if (prediction_table_2bitsat.entries[key].status >= WEAK_TAKEN) {
     return TAKEN;
   }
   return NOT_TAKEN;
@@ -45,27 +45,27 @@ bool GetPrediction_2bitsat(UINT32 PC) {
 
 void UpdatePredictor_2bitsat(UINT32 PC, bool resolveDir, bool predDir, UINT32 branchTarget) {
   int key = MASK_KEY_2BITSAT & PC;
-  auto counter = &prediction_table_2bitsat[key];
-
+  
+  auto currentStatus = prediction_table_2bitsat.entries[key].status;
   bool correct = resolveDir == predDir;
 
   // If we are correct, then we only have to update if not already saturated.
   // Otherwise, we must 'desaturate' or switch prediction.
   // TODO: a more clever encoding may make this less verbose, but I'm sensing the verbosity of this is a tradeoff with the get.
   if (correct) {
-    switch (counter->status) {
-      case WEAK_NOT_TAKEN:    counter->status = STRONG_NOT_TAKEN;
+    switch (currentStatus) {
+      case WEAK_NOT_TAKEN:    prediction_table_2bitsat.entries[key].status = STRONG_NOT_TAKEN;
         break;
-      case WEAK_TAKEN:        counter->status = STRONG_TAKEN;
+      case WEAK_TAKEN:        prediction_table_2bitsat.entries[key].status = STRONG_TAKEN;
         break;
       default: break;
     }
   } else {
-    switch (counter->status) {
-      case STRONG_NOT_TAKEN:  counter->status = WEAK_NOT_TAKEN;
-      case WEAK_NOT_TAKEN:    counter->status = WEAK_TAKEN;
-      case WEAK_TAKEN:        counter->status = WEAK_NOT_TAKEN;
-      case STRONG_TAKEN:      counter->status = WEAK_TAKEN;
+    switch (currentStatus) {
+      case STRONG_NOT_TAKEN:  prediction_table_2bitsat.entries[key].status = WEAK_NOT_TAKEN;
+      case WEAK_NOT_TAKEN:    prediction_table_2bitsat.entries[key].status = WEAK_TAKEN;
+      case WEAK_TAKEN:        prediction_table_2bitsat.entries[key].status = WEAK_NOT_TAKEN;
+      case STRONG_TAKEN:      prediction_table_2bitsat.entries[key].status = WEAK_TAKEN;
     }
   }
 }
@@ -73,6 +73,8 @@ void UpdatePredictor_2bitsat(UINT32 PC, bool resolveDir, bool predDir, UINT32 br
 /////////////////////////////////////////////////////////////
 // 2level
 /////////////////////////////////////////////////////////////
+
+
 
 void InitPredictor_2level() {
 
