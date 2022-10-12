@@ -21,9 +21,33 @@ enum Counter2BitSat {
   STRONG_TAKEN = 3
 };
 
-struct __attribute__((__packed__)) {
+void UpdateCounter2BitSat(Counter2BitSat* counter, bool correct) {
+  // If we are correct, then we only have to update if not already saturated.
+  // Otherwise, we must 'desaturate' or switch prediction.
+  // TODO: a more clever encoding may make this less verbose, but I'm sensing the verbosity of this is a tradeoff with the get.
+  if (correct) {
+    switch (*counter) {
+      case WEAK_NOT_TAKEN:    *counter = STRONG_NOT_TAKEN;
+        break;
+      case WEAK_TAKEN:        *counter = STRONG_TAKEN;
+        break;
+      default: break;
+    }
+  } else {
+    switch (*counter) {
+      case STRONG_NOT_TAKEN:  *counter = WEAK_NOT_TAKEN;
+      case WEAK_NOT_TAKEN:    *counter = WEAK_TAKEN;
+      case WEAK_TAKEN:        *counter = WEAK_NOT_TAKEN;
+      case STRONG_TAKEN:      *counter = WEAK_TAKEN;
+    }
+  }
+}
+
+// TODO: confirm doesn't have to be a bitfield for sim.
+
+struct {
   struct {
-    Counter2BitSat status : 2;
+    Counter2BitSat status;
   } entries[ENTRIES_2BITSAT];
 } prediction_table_2bitsat;
 
@@ -45,29 +69,7 @@ bool GetPrediction_2bitsat(UINT32 PC) {
 
 void UpdatePredictor_2bitsat(UINT32 PC, bool resolveDir, bool predDir, UINT32 branchTarget) {
   int key = MASK_KEY_2BITSAT & PC;
-
-  auto currentStatus = prediction_table_2bitsat.entries[key].status;
-  bool correct = resolveDir == predDir;
-
-  // If we are correct, then we only have to update if not already saturated.
-  // Otherwise, we must 'desaturate' or switch prediction.
-  // TODO: a more clever encoding may make this less verbose, but I'm sensing the verbosity of this is a tradeoff with the get.
-  if (correct) {
-    switch (currentStatus) {
-      case WEAK_NOT_TAKEN:    prediction_table_2bitsat.entries[key].status = STRONG_NOT_TAKEN;
-        break;
-      case WEAK_TAKEN:        prediction_table_2bitsat.entries[key].status = STRONG_TAKEN;
-        break;
-      default: break;
-    }
-  } else {
-    switch (currentStatus) {
-      case STRONG_NOT_TAKEN:  prediction_table_2bitsat.entries[key].status = WEAK_NOT_TAKEN;
-      case WEAK_NOT_TAKEN:    prediction_table_2bitsat.entries[key].status = WEAK_TAKEN;
-      case WEAK_TAKEN:        prediction_table_2bitsat.entries[key].status = WEAK_NOT_TAKEN;
-      case STRONG_TAKEN:      prediction_table_2bitsat.entries[key].status = WEAK_TAKEN;
-    }
-  }
+  UpdateCounter2BitSat(&prediction_table_2bitsat.entries[key].status, resolveDir == predDir);
 }
 
 /////////////////////////////////////////////////////////////
@@ -85,16 +87,16 @@ void UpdatePredictor_2bitsat(UINT32 PC, bool resolveDir, bool predDir, UINT32 br
 #define MASK_KEY_BHT_2LEVEL (NUM_BHT_2LEVEL - 1)
 #define MASK_KEY_PHT_2LEVEL (NUM_PHT_2LEVEL - 1)
 
-struct __attribute__((__packed__)) {
+struct {
   struct {
     bool history[BITS_HISTORY_BHT_2LEVEL];
   } entries[NUM_BHT_2LEVEL];
 } bhts_2level = {0};
 
-struct __attribute__((__packed__)) {
+struct {
   struct {
     struct {
-      Counter2BitSat status : 2;
+      Counter2BitSat status;
     } patterns [PATTERNS_2LEVEL];
   } entries[NUM_PHT_2LEVEL];
 } phts_2level;
@@ -114,8 +116,8 @@ bool GetPrediction_2level(UINT32 PC) {
   int key_pht = PC & MASK_KEY_PHT_2LEVEL;
 
   // TODO: check if this cast is OK.
-  auto history = (int*) bhts_2level.entries[key_bht].history;
-  auto status = phts_2level.entries[key_pht].patterns[*history].status;
+  auto history = bhts_2level.entries[key_bht].history;
+  auto status = phts_2level.entries[key_pht].patterns[*(int*)history].status;
 
   if (status >= WEAK_TAKEN) {
     return TAKEN;
@@ -125,7 +127,16 @@ bool GetPrediction_2level(UINT32 PC) {
 }
 
 void UpdatePredictor_2level(UINT32 PC, bool resolveDir, bool predDir, UINT32 branchTarget) {
+  int key_bht = (PC >> 3) & MASK_KEY_BHT_2LEVEL;
+  int key_pht = PC & MASK_KEY_PHT_2LEVEL;
 
+  auto history = (int*) bhts_2level.entries[key_bht].history;
+
+  // Update pattern counter.
+  UpdateCounter2BitSat(&phts_2level.entries[key_pht].patterns[*history].status, resolveDir == predDir);
+
+  // Update history.
+  *history = (*history << 1) | resolveDir;
 }
 
 /////////////////////////////////////////////////////////////
