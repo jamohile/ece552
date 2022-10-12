@@ -8,15 +8,13 @@
 
 // The total space allocated to the 2bitsat prediction table.
 #define BITS_2BITSAT (8192)
+// Number of entries present in the 2bitsat table.
+// These each track a unique counter.
 #define ENTRIES_2BITSAT (BITS_2BITSAT / 2)
 
 // Set as log2 of number of entries,
 // due to CPP limits, can't be auto-generated.
 #define BITS_KEY_2BITSAT (12)
-
-struct keyed_pc_2bitsat {
-  unsigned int key : BITS_KEY_2BITSAT;
-};
 
 enum Counter2BitSat {
   STRONG_NOT_TAKEN = 0,
@@ -25,6 +23,7 @@ enum Counter2BitSat {
   STRONG_TAKEN = 3
 };
 
+// Increment a 2bitsat counter with the result of a computation.
 void UpdateCounter2BitSat(Counter2BitSat* counter, bool correct) {
   // If we are correct, then we only have to update if not already saturated.
   // Otherwise, we must 'desaturate' or switch prediction.
@@ -47,7 +46,9 @@ void UpdateCounter2BitSat(Counter2BitSat* counter, bool correct) {
   }
 }
 
-// TODO: confirm doesn't have to be a bitfield for sim.
+struct keyed_pc_2bitsat {
+  unsigned int key : BITS_KEY_2BITSAT;
+};
 
 struct {
   struct {
