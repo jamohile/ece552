@@ -8,3 +8,5 @@ sysprobe
 **/out
 output.log
 submission
+predictor
+.vscode
