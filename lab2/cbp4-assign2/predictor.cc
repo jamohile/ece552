@@ -1,147 +1,125 @@
 #include "predictor.h"
-
-#include <cmath>
-
+#include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <cstdlib>
 /////////////////////////////////////////////////////////////
 // 2bitsat
 /////////////////////////////////////////////////////////////
-
-// The total space allocated to the 2bitsat prediction table.
-#define BITS_2BITSAT (8192)
-// Number of entries present in the 2bitsat table.
-// These each track a unique counter.
-#define ENTRIES_2BITSAT (BITS_2BITSAT / 2)
-
-// Set as log2 of number of entries,
-// due to CPP limits, can't be auto-generated.
-#define BITS_KEY_2BITSAT (12)
-
-class Counter2BitSat {
-  enum States {
-    STRONG_NOT_TAKEN = 0,
-    WEAK_NOT_TAKEN = 1,
-    WEAK_TAKEN = 2,
-    STRONG_TAKEN = 3
-  };
-
-  private:
-    States state;
-  
-  public:
-    Counter2BitSat(): state(WEAK_NOT_TAKEN) {}
-
-    void update(bool correct) {
-      // If we are correct, then we only have to update if not already saturated.
-      // Otherwise, we must 'desaturate' or switch prediction.
-      // TODO: a more clever encoding may make this less verbose, but I'm sensing the verbosity of this is a tradeoff with the get.
-      if (correct) {
-        switch (state) {
-          case WEAK_NOT_TAKEN:    state = STRONG_NOT_TAKEN;
-            break;
-          case WEAK_TAKEN:        state = STRONG_TAKEN;
-            break;
-          default: break;
-        }
-      } else {
-        switch (state) {
-          case STRONG_NOT_TAKEN:  state = WEAK_NOT_TAKEN;
-            break;
-          case WEAK_NOT_TAKEN:    state = WEAK_TAKEN;
-            break;
-          case WEAK_TAKEN:        state = WEAK_NOT_TAKEN;
-            break;
-          case STRONG_TAKEN:      state = WEAK_TAKEN;
-            break;
-        }
-      }
-    }
-
-    bool predict() {
-      if (state >= WEAK_TAKEN) {
-        return TAKEN;
-      }
-      return NOT_TAKEN;
-    }
-};
-
-struct keyed_pc_2bitsat {
-  unsigned int key : BITS_KEY_2BITSAT;
-};
-
-Counter2BitSat prediction_table_2bitsat[ENTRIES_2BITSAT];
-
-void InitPredictor_2bitsat() {}
+//#define predictortable2bittotalbits 8192;
+#define Nottaken 0
+#define weaklynottaken 1
+#define weaklytaken 2
+#define stronglytaken 3
+int predictortable2bit[8192/2];
+void InitPredictor_2bitsat() {
+  for (int i=0; i<4096; i++) {
+      predictortable2bit[i] = weaklynottaken;  
+  }
+}
 
 bool GetPrediction_2bitsat(UINT32 PC) {
-  auto pc = (struct keyed_pc_2bitsat*) &PC;
-  return prediction_table_2bitsat[pc->key].predict();
+  // 3f is 12 1s
+  int last12 = PC & (0x0FFF);
+  if ( (predictortable2bit[last12] == Nottaken) ||  (predictortable2bit[last12]  == weaklynottaken)) {
+    return NOT_TAKEN;
+  }
+  else {
+    return TAKEN;
+  }
+  
 }
 
 void UpdatePredictor_2bitsat(UINT32 PC, bool resolveDir, bool predDir, UINT32 branchTarget) {
-  auto pc = (struct keyed_pc_2bitsat*) &PC;
-  prediction_table_2bitsat[pc->key].update(resolveDir == predDir);
+  int last12 = (PC & 0x0FFF);
+  if (resolveDir == true && predictortable2bit[last12] == Nottaken) {
+    predictortable2bit[last12] = weaklynottaken;
+  } 
+  else if (resolveDir == true && predictortable2bit[last12] == weaklynottaken) {
+    predictortable2bit[last12] = weaklytaken;
+  }  
+  else if (resolveDir == true && predictortable2bit[last12] == weaklytaken) {
+    predictortable2bit[last12] = stronglytaken;
+  }
+  else if (resolveDir == true && predictortable2bit[last12] == stronglytaken) {
+    predictortable2bit[last12] = stronglytaken;
+  }
+  else {
+    if (resolveDir == false && predictortable2bit[last12] == stronglytaken) {
+      predictortable2bit [last12] = weaklytaken;
+    }
+    else if (resolveDir == false && predictortable2bit[last12] == weaklytaken) {
+      predictortable2bit[last12] = weaklynottaken;
+    }
+    else if (resolveDir == false && predictortable2bit[last12] == weaklynottaken) {
+      predictortable2bit[last12] = Nottaken;
+    }
+    else if (resolveDir == false && predictortable2bit[last12] == Nottaken) {
+      predictortable2bit[last12] = Nottaken;   
+    }
+  }
 }
 
 /////////////////////////////////////////////////////////////
 // 2level
 /////////////////////////////////////////////////////////////
-
-#define NUM_BHT_2LEVEL (512)
-#define BITS_HISTORY_BHT_2LEVEL (6)
-#define NUM_PHT_2LEVEL (8)
-
-
-#define NUM_PATTERNS_2LEVEL ((int) pow(2, BITS_HISTORY_BHT_2LEVEL))
-
-// Must be set based on the log2 of BHTs/PHTs
-// Cannot do at compile time due to CPP limitations.
-#define BITS_KEY_BHT_2LEVEL (9)
-#define BITS_KEY_PHT_2LEVEL (3)
-
-
-struct keyed_pc_2level {
-  unsigned int bht : BITS_KEY_BHT_2LEVEL;
-  unsigned int pht : BITS_KEY_PHT_2LEVEL;
-};
-
-class History2Level {
-  private:
-    unsigned int history : BITS_HISTORY_BHT_2LEVEL;
-    
-  public:
-    History2Level(): history(0) {};
-
-    auto get() {
-      return history;
+int private_history_table [512];
+int private_predictor_table [8][64];
+void InitPredictor_2level() {
+  for (int i =0; i< 512; i++) {
+    private_history_table[i] = 0;
+  }
+  for (int i =0; i<8; i++) {
+    for (int j=0; j<64; j++) {
+      private_predictor_table[i][j]= weaklynottaken;
     }
-
-    auto update(bool result) {
-      history <<= 1;
-      history |= result;
-    }
-};
-
-// We have several BHTs, which track history for a bucket of PC addresses.
-History2Level bhts_2level[NUM_BHT_2LEVEL];
-
-// We have several PHTs, each of which contain several pattern-aware counters.
-Counter2BitSat phts_2level[NUM_PHT_2LEVEL][NUM_PATTERNS_2LEVEL];
-
-void InitPredictor_2level() {}
+  }
+}
 
 bool GetPrediction_2level(UINT32 PC) {
-  auto pc = (struct keyed_pc_2level*) &PC;
-  auto history = &bhts_2level[pc->bht];
-
-  return phts_2level[pc->pht][history->get()].predict();
+  int historytableindex = (PC & 0b111111111000 ) >> 3;
+  int value_history_table = private_history_table [historytableindex];
+  int tableindex = (PC & 0b111);
+  if (private_predictor_table[tableindex][value_history_table] == weaklytaken || private_predictor_table[tableindex][value_history_table] == stronglytaken) {
+    return TAKEN;
+  } 
+  else {
+    return NOT_TAKEN;
+  }
 }
 
 void UpdatePredictor_2level(UINT32 PC, bool resolveDir, bool predDir, UINT32 branchTarget) {
-  auto pc = (struct keyed_pc_2level*) &PC;
-  auto history = &bhts_2level[pc->bht];
-
-  phts_2level[pc->pht][history->get()].update(resolveDir == predDir);
-  history->update(resolveDir);
+  int historytableindex = (PC & 0b111111111000 ) >> 3;
+  int value_history_table = private_history_table [historytableindex];
+  int tableindex = (PC & 0b111);
+  if (resolveDir == true && private_predictor_table[tableindex][value_history_table] == Nottaken) {
+    private_predictor_table[tableindex][value_history_table]= weaklynottaken;
+  } 
+  else if (resolveDir == true && private_predictor_table[tableindex][value_history_table] == weaklynottaken) {
+    private_predictor_table[tableindex][value_history_table] = weaklytaken;
+  }  
+  else if (resolveDir == true && private_predictor_table[tableindex][value_history_table]== weaklytaken) {
+    private_predictor_table[tableindex][value_history_table]= stronglytaken;
+  }
+  else if (resolveDir == true && private_predictor_table[tableindex][value_history_table] == stronglytaken) {
+    private_predictor_table[tableindex][value_history_table]= stronglytaken;
+  }
+  else {
+    if (resolveDir == false && private_predictor_table[tableindex][value_history_table] == stronglytaken) {
+      private_predictor_table [tableindex][value_history_table] = weaklytaken;
+    }
+    else if (resolveDir == false && private_predictor_table[tableindex][value_history_table] == weaklytaken) {
+      private_predictor_table[tableindex][value_history_table]= weaklynottaken;
+    }
+    else if (resolveDir == false && private_predictor_table[tableindex][value_history_table] == weaklynottaken) {
+      private_predictor_table[tableindex][value_history_table]= Nottaken;
+    }
+    else if (resolveDir == false && private_predictor_table[tableindex][value_history_table] == Nottaken) {
+      private_predictor_table[tableindex][value_history_table] = Nottaken;   
+    }
+  }
+  int new_value_history_table = ((value_history_table << 1) + resolveDir) & (0b111111);
+  private_history_table[historytableindex] =  new_value_history_table;
 }
 
 /////////////////////////////////////////////////////////////
