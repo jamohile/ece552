@@ -116,7 +116,7 @@ struct keyed_pc_2level {
 template<int BITS>
 class History {
   private:
-    unsigned int history : BITS;
+    unsigned long history : BITS;
     
   public:
     History(): history(0) {};
@@ -263,7 +263,7 @@ class TagePredictor {
   using Entry = TageEntry<BITS_TAG, BITS_USEFULNESS>;
 
   private:
-    History<32> history;
+    History<64> history;
     std::vector<BaseTageComponent<BITS_KEY, BITS_TAG, BITS_USEFULNESS>*> components;
 
     int get_provider_index (unsigned int pc) {
@@ -289,7 +289,7 @@ class TagePredictor {
         if (components[i]->can_allocate(pc, history.get())) {
           return i;
         }
-      }
+      } 
       return -1;
     }
 
@@ -301,6 +301,7 @@ class TagePredictor {
       components.push_back(new TageComponent<4, BITS_KEY, BITS_TAG, BITS_USEFULNESS, BITS_KEY + 4>());
       components.push_back(new TageComponent<8, BITS_KEY, BITS_TAG, BITS_USEFULNESS, BITS_KEY + 8>());
       components.push_back(new TageComponent<16, BITS_KEY, BITS_TAG, BITS_USEFULNESS, BITS_KEY + 8>());
+      components.push_back(new TageComponent<32, BITS_KEY, BITS_TAG, BITS_USEFULNESS, BITS_KEY + 8>());
     }
 
     bool predict(unsigned int pc) {
