@@ -2,6 +2,7 @@
 #include <strings.h>
 #include <vector>
 #include <cmath>
+#include <algorithm>
 
 /////////////////////////////////////////////////////////////
 // 2bitsat
@@ -182,39 +183,79 @@ class TageEntry {
     }
 };
 
-template <int BITS_TAG, int BITS_USEFULNESS>
+// Get the number of entries representable by a bitfield of length B.
+#define BITS2ENTRIES(B) ((1L << B))
+
+// Get the mask required to select a bitfield of length B.
+#define BITS2MASK(B) (BITS2ENTRIES(B) - 1L)
+
+template <int BITS_KEY, int BITS_TAG, int BITS_USEFULNESS>
 class BaseTageComponent {
   using Entry = TageEntry<BITS_TAG, BITS_USEFULNESS>;
 
-  public:
+  protected:
     virtual Entry* get_entry(unsigned int pc, unsigned int full_history) = 0;
-    virtual Entry* get_tagged_entry(unsigned int pc, unsigned int full_history) = 0;
+
+    unsigned int get_key(unsigned int pc) {
+      return pc & BITS2MASK(BITS_KEY);
+    }
+
+    unsigned int get_tag(unsigned int pc) {
+      return (pc >> BITS_KEY) & BITS2MASK(BITS_TAG);
+    }
+
+
+  public:
+    bool can_predict(unsigned int pc, unsigned int full_history) {
+      auto entry = get_entry(pc, full_history);
+      return entry->matches(get_tag(pc));
+    }
+
+    bool predict(unsigned int pc, unsigned int full_history) {
+      return get_entry(pc, full_history)->predict();
+    }
+
+    bool can_allocate(unsigned int pc, unsigned int full_history) {
+      auto entry = get_entry(pc, full_history);
+      return entry->is_available();
+    }
+
+    void allocate(unsigned int pc, unsigned int full_history) {
+      auto entry = get_entry(pc, full_history);
+      entry->allocate(get_tag(pc));
+    }
+
+    void update(unsigned int pc, unsigned int full_history, bool correct) {
+      get_entry(pc, full_history)->update(correct);
+    }
+
+    void increase_usefulness(unsigned int pc, unsigned int full_history) {
+      get_entry(pc, full_history)->increment();
+    }
+    void decrease_usefulness(unsigned int pc, unsigned int full_history) {
+      get_entry(pc, full_history)->decrement();
+    }
 };
 
-template <int BITS_HISTORY, int BITS_KEY, int BITS_TAG, int BITS_USEFULNESS>
-class TageComponent : public BaseTageComponent<BITS_TAG, BITS_USEFULNESS> {
+template <int BITS_HISTORY, int BITS_KEY, int BITS_TAG, int BITS_USEFULNESS, int BITS_HASH>
+class TageComponent : public BaseTageComponent<BITS_KEY, BITS_TAG, BITS_USEFULNESS> {
   using Entry = TageEntry<BITS_TAG, BITS_USEFULNESS>;
 
   private:
-    Entry entries[1L << (BITS_HISTORY + BITS_KEY)];
-  
-  public:
+    Entry entries[BITS2ENTRIES(BITS_HASH)];
+
+    unsigned int get_history(unsigned int full_history) {
+      return full_history & BITS2MASK(BITS_HISTORY);
+    }
+
+    unsigned int get_hash(unsigned int pc, unsigned int full_history) {
+      auto index = (this->get_key(pc) << BITS_HISTORY) | get_history(full_history);
+      return index % BITS2ENTRIES(BITS_HASH);
+    }
+
     Entry* get_entry(unsigned int pc, unsigned int full_history) override {
-      auto key = pc & ((1L << BITS_KEY) - 1);
-      auto history = full_history & ((1L << BITS_HISTORY) - 1);
-      auto index = (key << BITS_HISTORY) | history;
-
-      return &entries[index];
-    }
-
-    Entry* get_tagged_entry(unsigned int pc, unsigned int full_history) override {
-      auto entry = get_entry(pc, full_history);
-      auto tag = (pc >> BITS_KEY) & ((1L << BITS_TAG) - 1);
-      if (entry->matches(tag)) {
-        return entry;
-      }
-      return NULL;
-    }
+      return &entries[get_hash(pc ,full_history)];
+    }    
 };
 
 template <int BITS_KEY, int BITS_TAG, int BITS_USEFULNESS>
@@ -223,30 +264,29 @@ class TagePredictor {
 
   private:
     History<32> history;
-    std::vector<BaseTageComponent<BITS_TAG, BITS_USEFULNESS>*> components;
+    std::vector<BaseTageComponent<BITS_KEY, BITS_TAG, BITS_USEFULNESS>*> components;
 
-    unsigned int get_provider_index (unsigned int pc) {
+    int get_provider_index (unsigned int pc) {
       for (int i = components.size() - 1; i >= 0; i--) {
-        Entry* predictor = components[i]->get_tagged_entry(pc, history.get());
-        if (predictor != NULL) {
+        if (i == 0 || components[i]->can_predict(pc, history.get())) {
           return i;
         }
       }
+      return 0;
     }
 
-    unsigned int get_altpred_index (unsigned int pc) {
+    int get_altpred_index (unsigned int pc) {
       for (int i = get_provider_index(pc) - 1; i >= 0; i--) {
-        Entry* altpred = components[i]->get_tagged_entry(pc, history.get());
-        if (altpred != NULL) {
+        if (i == 0 || components[i]->can_predict(pc, history.get())) {
           return i;
         }
       }
+      return -1;
     }
 
     int get_allocation_index (unsigned int pc) {
-      for (int i = get_provider_index(pc) + 1; i < components.size(); i++) {
-        Entry* allocation = components[i]->get_entry(pc, history.get());
-        if (allocation->is_available()) {
+      for (unsigned int i = get_provider_index(pc) + 1; i < components.size(); i++) {
+        if (components[i]->can_allocate(pc, history.get())) {
           return i;
         }
       }
@@ -255,35 +295,40 @@ class TagePredictor {
 
   public:
     TagePredictor() {
-      components.push_back(new TageComponent<0, BITS_KEY, BITS_TAG, BITS_USEFULNESS>());
-      components.push_back(new TageComponent<1, BITS_KEY, BITS_TAG, BITS_USEFULNESS>());
-      components.push_back(new TageComponent<2, BITS_KEY, BITS_TAG, BITS_USEFULNESS>());
-      components.push_back(new TageComponent<4, BITS_KEY, BITS_TAG, BITS_USEFULNESS>());
+      components.push_back(new TageComponent<0, BITS_KEY, BITS_TAG, BITS_USEFULNESS, BITS_KEY + 0>());
+      components.push_back(new TageComponent<1, BITS_KEY, BITS_TAG, BITS_USEFULNESS, BITS_KEY + 1>());
+      components.push_back(new TageComponent<2, BITS_KEY, BITS_TAG, BITS_USEFULNESS, BITS_KEY + 2>());
+      components.push_back(new TageComponent<4, BITS_KEY, BITS_TAG, BITS_USEFULNESS, BITS_KEY + 4>());
+      components.push_back(new TageComponent<8, BITS_KEY, BITS_TAG, BITS_USEFULNESS, BITS_KEY + 8>());
+      components.push_back(new TageComponent<16, BITS_KEY, BITS_TAG, BITS_USEFULNESS, BITS_KEY + 8>());
     }
 
     bool predict(unsigned int pc) {
       auto provider = components[get_provider_index(pc)];
-      return provider->get_tagged_entry(pc, history.get())->predict();
+      return provider->predict(pc, history.get());
     }
 
     void update(unsigned int pc, bool prediction, bool result) {
       auto provider = components[get_provider_index(pc)];
-      auto provider_entry = provider->get_tagged_entry(pc, history.get());
 
       if (prediction == result) {
-        auto altpred = components[get_altpred_index(pc)];
-        if (altpred->get_tagged_entry(pc, history.get())->predict() != prediction) {
-         provider_entry->increment();
+        provider->update(pc, history.get(), true);
+
+        auto altpred_index = get_altpred_index(pc);
+        if (altpred_index >= 0) {
+          if (components[altpred_index]->predict(pc, history.get()) != prediction) {
+            provider->increase_usefulness(pc, history.get());
+          }
         }
       } else {
-        provider_entry->update(false);
+        provider->update(pc, history.get(), false);
+        
         auto allocation_index = get_allocation_index(pc);
         if (allocation_index >= 0) {
-          auto tag = (pc >> BITS_KEY) & ((1 << BITS_TAG) - 1);
-          components[allocation_index]->get_entry(pc, history.get())->allocate(tag);
+          components[allocation_index]->allocate(pc, history.get());
         } else {
-          for (int i = get_provider_index(pc); i < components.size(); i++) {
-            components[i]->get_entry(pc, history.get())->decrement();
+          for (unsigned int i = get_provider_index(pc); i < components.size(); i++) {
+            components[i]->decrease_usefulness(pc, history.get());
           }
         }
       }
@@ -296,7 +341,7 @@ void InitPredictor_2level() {}
 
 bool GetPrediction_2level(UINT32 PC) {
   auto pc = (struct keyed_pc_2level*) &PC;
-  auto history = &bhts_2level[pc->bht];
+  auto history = &bhts_2level[pc->bht]; 
 
   return phts_2level[pc->pht][history->get()].predict();
 }
