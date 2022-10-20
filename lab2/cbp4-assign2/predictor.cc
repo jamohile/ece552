@@ -7,14 +7,18 @@
 // 2bitsat
 /////////////////////////////////////////////////////////////
 
+// Note: FFS returns the 1-indexed position of the first non-zero bit.
+// We use it as a poor-man's log2, since log2 cannot be used as a constexpr.
+constexpr int _log2(int N) {
+  return ffs(N) - 1;
+}
+
 // The total space allocated to the 2bitsat prediction table.
 #define BITS_2BITSAT (8192)
 // Number of entries present in the 2bitsat table.
 // These each track a unique counter.
 #define ENTRIES_2BITSAT (BITS_2BITSAT / 2)
-// Note: FFS returns the 1-indexed position of the first non-zero bit.
-// We use it as a poor-man's log2, since log2 cannot be used as a constexpr.
-#define BITS_KEY_2BITSAT (ffs(ENTRIES_2BITSAT) - 1)
+#define BITS_KEY_2BITSAT (_log2(ENTRIES_2BITSAT))
 
 class Counter2BitSat {
   enum States {
@@ -61,6 +65,10 @@ class Counter2BitSat {
         return TAKEN;
       }
       return NOT_TAKEN;
+    }
+
+    void reset() {
+      state = WEAK_TAKEN;
     }
 };
 
@@ -127,6 +135,40 @@ History<BITS_HISTORY_BHT_2LEVEL> bhts_2level[NUM_BHT_2LEVEL];
 
 // We have several PHTs, each of which contain several pattern-aware counters.
 Counter2BitSat phts_2level[NUM_PHT_2LEVEL][NUM_PATTERNS_2LEVEL];
+
+template <int BITS_HISTORY, int BITS_KEY, int BITS_TAG, int BITS_USEFULNESS>
+class TageEntry {
+  private:
+    Counter2BitSat counter;
+    unsigned int tag: BITS_TAG;
+    unsigned int usefulness: BITS_USEFULNESS;
+  
+  public:
+    TageEntry(): tag(0), usefulness(0) {};
+
+    void allocate(unsigned int new_tag) {
+      tag = new_tag;
+      counter.reset();
+
+      usefulness = 0;
+    }
+
+    bool is_available() {
+      return usefulness == 0;
+    }
+
+    void increment() {
+      if ((usefulness + 1) > usefulness){
+        usefulness++;
+      }
+    }
+
+    void decrement() {
+      if ((usefulness - 1) < usefulness){
+        usefulness--;
+      }
+    }
+};
 
 void InitPredictor_2level() {}
 
