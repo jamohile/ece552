@@ -1,4 +1,5 @@
 #include "predictor.h"
+#include <strings.h>
 
 #include <cmath>
 
@@ -11,10 +12,9 @@
 // Number of entries present in the 2bitsat table.
 // These each track a unique counter.
 #define ENTRIES_2BITSAT (BITS_2BITSAT / 2)
-
-// Set as log2 of number of entries,
-// due to CPP limits, can't be auto-generated.
-#define BITS_KEY_2BITSAT (12)
+// Note: FFS returns the 1-indexed position of the first non-zero bit.
+// We use it as a poor-man's log2, since log2 cannot be used as a constexpr.
+#define BITS_KEY_2BITSAT (ffs(ENTRIES_2BITSAT) - 1)
 
 class Counter2BitSat {
   enum States {
