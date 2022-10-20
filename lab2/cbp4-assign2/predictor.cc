@@ -136,7 +136,7 @@ History<BITS_HISTORY_BHT_2LEVEL> bhts_2level[NUM_BHT_2LEVEL];
 // We have several PHTs, each of which contain several pattern-aware counters.
 Counter2BitSat phts_2level[NUM_PHT_2LEVEL][NUM_PATTERNS_2LEVEL];
 
-template <int BITS_HISTORY, int BITS_KEY, int BITS_TAG, int BITS_USEFULNESS>
+template <int BITS_TAG, int BITS_USEFULNESS>
 class TageEntry {
   private:
     Counter2BitSat counter;
@@ -167,6 +167,43 @@ class TageEntry {
       if ((usefulness - 1) < usefulness){
         usefulness--;
       }
+    }
+
+    bool matches(unsigned int _tag) {
+      return tag == _tag;
+    }
+
+    bool predict() {
+      return counter.predict();
+    }
+
+    void update(bool correct) {
+      counter.update(correct);
+    }
+};
+
+template <int BITS_HISTORY, int BITS_KEY, int BITS_TAG, int BITS_USEFULNESS>
+class TageComponent {
+  using Entry = TageEntry<BITS_TAG, BITS_USEFULNESS>;
+
+  private:
+    Entry entries[1 << (BITS_HISTORY + BITS_KEY)];
+  
+  public:
+    Entry* get_entry(unsigned int pc, unsigned int full_history) {
+      auto key = pc & ((1 << BITS_KEY) - 1);
+      auto history = history & ((1 << BITS_HISTORY) - 1);
+      auto index = (key << BITS_HISTORY) | BITS_HISTORY;
+
+      return &entries[index];
+    }
+
+    Entry* get_tagged_entry(unsigned int pc, unsigned int full_history, unsigned int tag) {
+      auto entry = get_entry(pc, full_history);
+      if (entry->matches(tag)) {
+        return entry;
+      }
+      return NULL;
     }
 };
 
