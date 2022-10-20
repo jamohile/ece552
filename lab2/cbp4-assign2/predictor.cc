@@ -1,6 +1,6 @@
 #include "predictor.h"
 #include <strings.h>
-
+#include <vector>
 #include <cmath>
 
 /////////////////////////////////////////////////////////////
@@ -207,12 +207,92 @@ class TageComponent : public BaseTageComponent<BITS_TAG, BITS_USEFULNESS> {
       return &entries[index];
     }
 
-    Entry* get_tagged_entry(unsigned int pc, unsigned int full_history, unsigned int tag) {
+    Entry* get_tagged_entry(unsigned int pc, unsigned int full_history) {
       auto entry = get_entry(pc, full_history);
+      auto tag = (pc >> BITS_KEY) & ((1 << BITS_TAG) - 1);
       if (entry->matches(tag)) {
         return entry;
       }
       return NULL;
+    }
+};
+
+template <int BITS_KEY, int BITS_TAG, int BITS_USEFULNESS>
+class TagePredictor {
+  using Entry = TageEntry<BITS_TAG, BITS_USEFULNESS>;
+
+  private:
+    History<32> history;
+    std::vector<BaseTageComponent<BITS_TAG, BITS_USEFULNESS>*> components;
+
+  public:
+    TagePredictor() {
+      components.push_back(new TageComponent<0, BITS_KEY, BITS_TAG, BITS_USEFULNESS>());
+      components.push_back(new TageComponent<1, BITS_KEY, BITS_TAG, BITS_USEFULNESS>());
+      components.push_back(new TageComponent<2, BITS_KEY, BITS_TAG, BITS_USEFULNESS>());
+      components.push_back(new TageComponent<4, BITS_KEY, BITS_TAG, BITS_USEFULNESS>());
+      components.push_back(new TageComponent<8, BITS_KEY, BITS_TAG, BITS_USEFULNESS>());
+      components.push_back(new TageComponent<16, BITS_KEY, BITS_TAG, BITS_USEFULNESS>());
+      components.push_back(new TageComponent<32, BITS_KEY, BITS_TAG, BITS_USEFULNESS>());
+    }
+
+    bool predict(unsigned int pc) {
+      for (int i = components.size() - 1; i >= 0; i--) {
+        Entry* entry = components[i]->get_tagged_entry(pc, history.get());
+        if (entry != NULL) {
+          return entry->predict();
+        }
+      }
+    }
+
+    void update(unsigned int pc, bool prediction, bool result) {
+      if (prediction == result) {
+        // Find the provider, and update it.
+        for (int i = components.size() - 1; i >= 0; i--) {
+          Entry* predictor = components[i]->get_tagged_entry(pc, history.get());
+          if (predictor != NULL) {
+            predictor->update(true);
+            // Find altpred.
+            for (int j = i; j >= 0; j--) {
+              Entry* altpred = components[j]->get_tagged_entry(pc, history.get()); 
+              if (altpred != NULL && altpred->predict() != prediction) {
+                predictor->increment();
+              }
+            }
+            break;
+          } 
+        }
+      } else {
+        // Find the provider, and weaken it.
+        for (int i = components.size() - 1; i >= 0; i--) {
+          Entry* entry = components[i]->get_tagged_entry(pc, history.get());
+          if (entry != NULL) {
+            entry->update(false);
+            // Now, try and allocate a new component with more history.
+            // If we're not able to allocate something, go ahead and weaken all.
+            bool allocated = false;
+            for (int j = i; j < components.size(); j++) {
+              // TODO: this should be pseudorandom.
+              Entry* candidate = components[j]->get_entry(pc, history.get());
+              if (candidate->is_available()) {
+                auto tag = (pc >> BITS_KEY) & ((1 << BITS_TAG) - 1);
+                allocated = true;
+                candidate->allocate(tag);
+                break;
+              }
+            }
+
+            if (!allocated) {
+              // Weaken all existing entries that could not be allocated against.
+              for (int j = i; j < components.size(); j++) {
+                Entry* failed_candidate = components[j]->get_entry(pc, history.get());
+                failed_candidate->decrement();
+              }
+            }
+            break;
+          } 
+        }
+      }
     }
 };
 
