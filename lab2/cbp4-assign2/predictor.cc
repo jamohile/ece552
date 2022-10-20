@@ -104,12 +104,13 @@ struct keyed_pc_2level {
   unsigned int pht : BITS_KEY_PHT_2LEVEL;
 };
 
-class History2Level {
+template<int BITS>
+class History {
   private:
-    unsigned int history : BITS_HISTORY_BHT_2LEVEL;
+    unsigned int history : BITS;
     
   public:
-    History2Level(): history(0) {};
+    History(): history(0) {};
 
     auto get() {
       return history;
@@ -122,7 +123,7 @@ class History2Level {
 };
 
 // We have several BHTs, which track history for a bucket of PC addresses.
-History2Level bhts_2level[NUM_BHT_2LEVEL];
+History<BITS_HISTORY_BHT_2LEVEL> bhts_2level[NUM_BHT_2LEVEL];
 
 // We have several PHTs, each of which contain several pattern-aware counters.
 Counter2BitSat phts_2level[NUM_PHT_2LEVEL][NUM_PATTERNS_2LEVEL];
