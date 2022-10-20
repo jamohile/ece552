@@ -3,6 +3,7 @@
 #include <vector>
 #include <cmath>
 #include <algorithm>
+#include <bitset>
 
 /////////////////////////////////////////////////////////////
 // 2bitsat
@@ -116,13 +117,13 @@ struct keyed_pc_2level {
 template<int BITS>
 class History {
   private:
-    unsigned long history : BITS;
+    std::bitset<BITS> history;
     
   public:
     History(): history(0) {};
 
     auto get() {
-      return history;
+      return history.to_ullong();
     }
 
     auto update(bool result) {
@@ -196,12 +197,12 @@ class BaseTageComponent {
   protected:
     virtual Entry* get_entry(unsigned int pc, unsigned int full_history) = 0;
 
-    unsigned int get_key(unsigned int pc) {
-      return pc & BITS2MASK(BITS_KEY);
+    auto get_key(unsigned int pc) {
+      return (unsigned long long) pc & BITS2MASK(BITS_KEY);
     }
 
-    unsigned int get_tag(unsigned int pc) {
-      return (pc >> BITS_KEY) & BITS2MASK(BITS_TAG);
+   auto get_tag(unsigned int pc) {
+      return (unsigned long long) (pc >> BITS_KEY) & BITS2MASK(BITS_TAG);
     }
 
 
@@ -244,8 +245,8 @@ class TageComponent : public BaseTageComponent<BITS_KEY, BITS_TAG, BITS_USEFULNE
   private:
     Entry entries[BITS2ENTRIES(BITS_HASH)];
 
-    unsigned int get_history(unsigned int full_history) {
-      return full_history & BITS2MASK(BITS_HISTORY);
+    auto get_history(unsigned int full_history) {
+      return (unsigned long long) full_history & BITS2MASK(BITS_HISTORY);
     }
 
     unsigned int get_hash(unsigned int pc, unsigned int full_history) {
