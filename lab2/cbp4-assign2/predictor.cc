@@ -182,8 +182,17 @@ class TageEntry {
     }
 };
 
+template <int BITS_TAG, int BITS_USEFULNESS>
+class BaseTageComponent {
+  using Entry = TageEntry<BITS_TAG, BITS_USEFULNESS>;
+
+  public:
+    virtual Entry* get_entry(unsigned int pc, unsigned int full_history) = 0;
+    virtual Entry* get_tagged_entry(unsigned int pc, unsigned int full_history, unsigned int tag) = 0;
+};
+
 template <int BITS_HISTORY, int BITS_KEY, int BITS_TAG, int BITS_USEFULNESS>
-class TageComponent {
+class TageComponent : public BaseTageComponent<BITS_TAG, BITS_USEFULNESS> {
   using Entry = TageEntry<BITS_TAG, BITS_USEFULNESS>;
 
   private:
