@@ -188,7 +188,7 @@ class BaseTageComponent {
 
   public:
     virtual Entry* get_entry(unsigned int pc, unsigned int full_history) = 0;
-    virtual Entry* get_tagged_entry(unsigned int pc, unsigned int full_history, unsigned int tag) = 0;
+    virtual Entry* get_tagged_entry(unsigned int pc, unsigned int full_history) = 0;
 };
 
 template <int BITS_HISTORY, int BITS_KEY, int BITS_TAG, int BITS_USEFULNESS>
@@ -196,20 +196,20 @@ class TageComponent : public BaseTageComponent<BITS_TAG, BITS_USEFULNESS> {
   using Entry = TageEntry<BITS_TAG, BITS_USEFULNESS>;
 
   private:
-    Entry entries[1 << (BITS_HISTORY + BITS_KEY)];
+    Entry entries[1L << (BITS_HISTORY + BITS_KEY)];
   
   public:
-    Entry* get_entry(unsigned int pc, unsigned int full_history) {
-      auto key = pc & ((1 << BITS_KEY) - 1);
-      auto history = history & ((1 << BITS_HISTORY) - 1);
-      auto index = (key << BITS_HISTORY) | BITS_HISTORY;
+    Entry* get_entry(unsigned int pc, unsigned int full_history) override {
+      auto key = pc & ((1L << BITS_KEY) - 1);
+      auto history = full_history & ((1L << BITS_HISTORY) - 1);
+      auto index = (key << BITS_HISTORY) | history;
 
       return &entries[index];
     }
 
-    Entry* get_tagged_entry(unsigned int pc, unsigned int full_history) {
+    Entry* get_tagged_entry(unsigned int pc, unsigned int full_history) override {
       auto entry = get_entry(pc, full_history);
-      auto tag = (pc >> BITS_KEY) & ((1 << BITS_TAG) - 1);
+      auto tag = (pc >> BITS_KEY) & ((1L << BITS_TAG) - 1);
       if (entry->matches(tag)) {
         return entry;
       }
@@ -225,74 +225,70 @@ class TagePredictor {
     History<32> history;
     std::vector<BaseTageComponent<BITS_TAG, BITS_USEFULNESS>*> components;
 
+    unsigned int get_provider_index (unsigned int pc) {
+      for (int i = components.size() - 1; i >= 0; i--) {
+        Entry* predictor = components[i]->get_tagged_entry(pc, history.get());
+        if (predictor != NULL) {
+          return i;
+        }
+      }
+    }
+
+    unsigned int get_altpred_index (unsigned int pc) {
+      for (int i = get_provider_index(pc) - 1; i >= 0; i--) {
+        Entry* altpred = components[i]->get_tagged_entry(pc, history.get());
+        if (altpred != NULL) {
+          return i;
+        }
+      }
+    }
+
+    int get_allocation_index (unsigned int pc) {
+      for (int i = get_provider_index(pc) + 1; i < components.size(); i++) {
+        Entry* allocation = components[i]->get_entry(pc, history.get());
+        if (allocation->is_available()) {
+          return i;
+        }
+      }
+      return -1;
+    }
+
   public:
     TagePredictor() {
       components.push_back(new TageComponent<0, BITS_KEY, BITS_TAG, BITS_USEFULNESS>());
       components.push_back(new TageComponent<1, BITS_KEY, BITS_TAG, BITS_USEFULNESS>());
       components.push_back(new TageComponent<2, BITS_KEY, BITS_TAG, BITS_USEFULNESS>());
       components.push_back(new TageComponent<4, BITS_KEY, BITS_TAG, BITS_USEFULNESS>());
-      components.push_back(new TageComponent<8, BITS_KEY, BITS_TAG, BITS_USEFULNESS>());
-      components.push_back(new TageComponent<16, BITS_KEY, BITS_TAG, BITS_USEFULNESS>());
-      components.push_back(new TageComponent<32, BITS_KEY, BITS_TAG, BITS_USEFULNESS>());
     }
 
     bool predict(unsigned int pc) {
-      for (int i = components.size() - 1; i >= 0; i--) {
-        Entry* entry = components[i]->get_tagged_entry(pc, history.get());
-        if (entry != NULL) {
-          return entry->predict();
-        }
-      }
+      auto provider = components[get_provider_index(pc)];
+      return provider->get_tagged_entry(pc, history.get())->predict();
     }
 
     void update(unsigned int pc, bool prediction, bool result) {
+      auto provider = components[get_provider_index(pc)];
+      auto provider_entry = provider->get_tagged_entry(pc, history.get());
+
       if (prediction == result) {
-        // Find the provider, and update it.
-        for (int i = components.size() - 1; i >= 0; i--) {
-          Entry* predictor = components[i]->get_tagged_entry(pc, history.get());
-          if (predictor != NULL) {
-            predictor->update(true);
-            // Find altpred.
-            for (int j = i; j >= 0; j--) {
-              Entry* altpred = components[j]->get_tagged_entry(pc, history.get()); 
-              if (altpred != NULL && altpred->predict() != prediction) {
-                predictor->increment();
-              }
-            }
-            break;
-          } 
+        auto altpred = components[get_altpred_index(pc)];
+        if (altpred->get_tagged_entry(pc, history.get())->predict() != prediction) {
+         provider_entry->increment();
         }
       } else {
-        // Find the provider, and weaken it.
-        for (int i = components.size() - 1; i >= 0; i--) {
-          Entry* entry = components[i]->get_tagged_entry(pc, history.get());
-          if (entry != NULL) {
-            entry->update(false);
-            // Now, try and allocate a new component with more history.
-            // If we're not able to allocate something, go ahead and weaken all.
-            bool allocated = false;
-            for (int j = i; j < components.size(); j++) {
-              // TODO: this should be pseudorandom.
-              Entry* candidate = components[j]->get_entry(pc, history.get());
-              if (candidate->is_available()) {
-                auto tag = (pc >> BITS_KEY) & ((1 << BITS_TAG) - 1);
-                allocated = true;
-                candidate->allocate(tag);
-                break;
-              }
-            }
-
-            if (!allocated) {
-              // Weaken all existing entries that could not be allocated against.
-              for (int j = i; j < components.size(); j++) {
-                Entry* failed_candidate = components[j]->get_entry(pc, history.get());
-                failed_candidate->decrement();
-              }
-            }
-            break;
-          } 
+        provider_entry->update(false);
+        auto allocation_index = get_allocation_index(pc);
+        if (allocation_index >= 0) {
+          auto tag = (pc >> BITS_KEY) & ((1 << BITS_TAG) - 1);
+          components[allocation_index]->get_entry(pc, history.get())->allocate(tag);
+        } else {
+          for (int i = get_provider_index(pc); i < components.size(); i++) {
+            components[i]->get_entry(pc, history.get())->decrement();
+          }
         }
       }
+
+      history.update(result);
     }
 };
 
@@ -317,16 +313,17 @@ void UpdatePredictor_2level(UINT32 PC, bool resolveDir, bool predDir, UINT32 bra
 // openend
 /////////////////////////////////////////////////////////////
 
+TagePredictor<5, 5, 3> tagePredictor;
+
 void InitPredictor_openend() {
 
 }
 
 bool GetPrediction_openend(UINT32 PC) {
-
-  return TAKEN;
+  return tagePredictor.predict(PC);
 }
 
 void UpdatePredictor_openend(UINT32 PC, bool resolveDir, bool predDir, UINT32 branchTarget) {
-
+  tagePredictor.update(PC, predDir, resolveDir);
 }
 
