@@ -47,15 +47,25 @@ We measure this as a basis to calibrate the other, more valuable, testcases.
  * Our 2-level predictor uses a history of 6 bits.
  * That means it is theoretically capable of perfectly memorizing a branch with a period of <= 7.
  * 
- * The code below tests that. Based on the below, we expect somewhere on the order of 10 mispredicts.
+ * The code below tests that, and based on the analysis, we expect somewhere on the order of 10 mispredicts.
 */
 
 #if CHOSEN_TESTCASE == 1
 int main()
 {
-    /*
+    /* Overall pattern.
+        X: N                       N                       N    ..............T
+        Y:   N               N   T   N               N   T   N
+        Z:     T T T T T T N   N       T T T T T T N   N
+           |______________________|____|   |   - history = 01111: cycle is memorized!
+                period                 |   - history = 11011
+                                       - history = 111100
+    */
 
-    Raw Assembly
+    /*
+    ================================================================
+    Raw Assembly: This is the assembly exactly as it's generated. See below for something more readable.
+    ================================================================
     main:
     .LFB0:
         .cfi_startproc
@@ -81,7 +91,13 @@ int main()
         ret
         .cfi_endproc
 
-    Aliased Assembly
+    */
+
+   /*
+   ================================================================
+    Aliased Assembly: This maintains the same structure as the assembly, but made human readable.
+    ================================================================
+    main:
         C = 7
         A = 0
         D = 0
@@ -89,10 +105,12 @@ int main()
 
     .L2:
         C += 7
+
         // This is not-taken every time but the final one.
         // Since we default to not-taken, it's right every other time.
         // Pattern: NT NT NT NT NT T NT...
         // Contributes 1 mispredict
+
         if C == 70007: 
             goto DONE
     .L4:
@@ -102,6 +120,7 @@ int main()
         // Then, it flows down and is once again taken again (NT).
         // Pattern: NT, T, NT, NT, T, NT T ..
         // Contributes 3 mispredicts.
+        
         if A > C:
             goto .L2
     .L3:
@@ -114,10 +133,12 @@ int main()
         // so this contributes 6 mispredicts.
         // Pattern: T T T T T T NT
         // Contributes 6 mispredicts
+
         if C != A:
             goto .L3
         goto .L4
     */
+
     unsigned int i = 0;
     unsigned int j = 0;
     unsigned int b = 0;
