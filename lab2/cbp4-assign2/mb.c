@@ -151,7 +151,8 @@ int main()
     unsigned int j = 0;
     unsigned int b = 0;
 
-    while (i < ITERS) {
+    while (i < ITERS)
+    {
         i += 1;
         while (b < 8 * i) {
             b += 1;
