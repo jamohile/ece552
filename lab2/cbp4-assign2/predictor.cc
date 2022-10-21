@@ -315,12 +315,23 @@ class TagePredictor {
     }
 
     int get_allocation_index (unsigned int pc) {
-      for (unsigned int i = get_provider_index(pc) + 1; i < components.size(); i++) {
+      std::vector<unsigned int> allocation_indices;
+      int probability = 1;
+
+      for (unsigned int i = components.size() - 1; i > get_provider_index(pc); i--) {
         if (components[i]->can_allocate(pc, history.get())) {
-          return i;
+          for (int j = 0; j < probability; j++) {
+            allocation_indices.push_back(i);
+          }
+          probability *= 2;
         }
-      } 
-      return -1;
+      }
+
+      if (allocation_indices.size() == 0) {
+        return -1;
+      }
+
+      return allocation_indices[rand() % allocation_indices.size()];
     }
 
   public:
