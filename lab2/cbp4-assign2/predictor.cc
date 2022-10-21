@@ -4,6 +4,7 @@
 #include <cmath>
 #include <algorithm>
 #include <bitset>
+#include <functional>
 
 /////////////////////////////////////////////////////////////
 // 2bitsat
@@ -251,7 +252,7 @@ class TageComponent : public BaseTageComponent<BITS_KEY, BITS_TAG, BITS_USEFULNE
 
     unsigned int get_hash(unsigned int pc, unsigned int full_history) {
       auto index = (this->get_key(pc) << BITS_HISTORY) | get_history(full_history);
-      return index % BITS2ENTRIES(BITS_HASH);
+      return (index) % BITS2ENTRIES(BITS_HASH);
     }
 
     Entry* get_entry(unsigned int pc, unsigned int full_history) override {
@@ -296,13 +297,13 @@ class TagePredictor {
 
   public:
     TagePredictor() {
-      components.push_back(new TageComponent<0, BITS_KEY, BITS_TAG, BITS_USEFULNESS, BITS_KEY + 0>());
-      components.push_back(new TageComponent<1, BITS_KEY, BITS_TAG, BITS_USEFULNESS, BITS_KEY + 1>());
-      components.push_back(new TageComponent<2, BITS_KEY, BITS_TAG, BITS_USEFULNESS, BITS_KEY + 2>());
-      components.push_back(new TageComponent<4, BITS_KEY, BITS_TAG, BITS_USEFULNESS, BITS_KEY + 4>());
-      components.push_back(new TageComponent<8, BITS_KEY, BITS_TAG, BITS_USEFULNESS, BITS_KEY + 8>());
-      components.push_back(new TageComponent<16, BITS_KEY, BITS_TAG, BITS_USEFULNESS, BITS_KEY + 8>());
-      components.push_back(new TageComponent<32, BITS_KEY, BITS_TAG, BITS_USEFULNESS, BITS_KEY + 8>());
+      components.push_back(new TageComponent<0, BITS_KEY, BITS_TAG, BITS_USEFULNESS, BITS_KEY>());
+      components.push_back(new TageComponent<1, BITS_KEY, BITS_TAG, BITS_USEFULNESS, BITS_KEY+1>());
+      components.push_back(new TageComponent<2, BITS_KEY, BITS_TAG, BITS_USEFULNESS, BITS_KEY+2>());
+      components.push_back(new TageComponent<4, BITS_KEY, BITS_TAG, BITS_USEFULNESS, 11>());
+      components.push_back(new TageComponent<8, BITS_KEY, BITS_TAG, BITS_USEFULNESS, 11>());
+      components.push_back(new TageComponent<16, BITS_KEY, BITS_TAG, BITS_USEFULNESS, 11>());
+      components.push_back(new TageComponent<32, BITS_KEY, BITS_TAG, BITS_USEFULNESS, 11>());
     }
 
     bool predict(unsigned int pc) {
@@ -360,7 +361,7 @@ void UpdatePredictor_2level(UINT32 PC, bool resolveDir, bool predDir, UINT32 bra
 // openend
 /////////////////////////////////////////////////////////////
 
-TagePredictor<5, 5, 3> tagePredictor;
+TagePredictor<7, 8, 2> tagePredictor;
 
 void InitPredictor_openend() {
 
