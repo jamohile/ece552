@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <bitset>
 #include <functional>
+#include <cstdlib>
 
 /////////////////////////////////////////////////////////////
 // 2bitsat
@@ -111,14 +112,14 @@ void UpdatePredictor_2bitsat(UINT32 PC, bool resolveDir, bool predDir, UINT32 br
 
 
 struct keyed_pc_2level {
-  unsigned int bht : BITS_KEY_BHT_2LEVEL;
   unsigned int pht : BITS_KEY_PHT_2LEVEL;
+  unsigned int bht : BITS_KEY_BHT_2LEVEL;
 };
 
 template<int BITS>
 class History {
   private:
-    std::bitset<BITS> history;
+    std::bitset<BITS> history; 
     
   public:
     History(): history(0) {};
@@ -138,6 +139,33 @@ History<BITS_HISTORY_BHT_2LEVEL> bhts_2level[NUM_BHT_2LEVEL];
 
 // We have several PHTs, each of which contain several pattern-aware counters.
 Counter2BitSat phts_2level[NUM_PHT_2LEVEL][NUM_PATTERNS_2LEVEL];
+
+void InitPredictor_2level() {}
+
+bool GetPrediction_2level(UINT32 PC) {
+  auto pc = (struct keyed_pc_2level*) &PC;
+  auto history = &bhts_2level[pc->bht]; 
+
+  // std::cout << "2 Level Predicting:" << std::endl;
+  // std::cout << "   PC: " << std::hex << PC << std::dec << std::endl;
+  // std::cout << "   BHT: " << pc->bht  << std::endl;
+  // std::cout << "   PHT: " << pc->pht  << std::endl;
+
+  return phts_2level[pc->pht][history->get()].predict();
+}
+
+void UpdatePredictor_2level(UINT32 PC, bool resolveDir, bool predDir, UINT32 branchTarget) {
+  auto pc = (struct keyed_pc_2level*) &PC;
+  auto history = &bhts_2level[pc->bht];
+
+  phts_2level[pc->pht][history->get()].update(resolveDir == predDir);
+  history->update(resolveDir);
+}
+
+/////////////////////////////////////////////////////////////
+// openend
+/////////////////////////////////////////////////////////////
+
 
 template <int BITS_TAG, int BITS_USEFULNESS>
 class TageEntry {
@@ -239,12 +267,12 @@ class BaseTageComponent {
     }
 };
 
-template <int BITS_HISTORY, int BITS_KEY, int BITS_TAG, int BITS_USEFULNESS, int BITS_HASH>
+template <int BITS_HISTORY, int BITS_KEY, int BITS_TAG, int BITS_USEFULNESS, int ENTRIES>
 class TageComponent : public BaseTageComponent<BITS_KEY, BITS_TAG, BITS_USEFULNESS> {
   using Entry = TageEntry<BITS_TAG, BITS_USEFULNESS>;
 
   private:
-    Entry entries[BITS2ENTRIES(BITS_HASH)];
+    Entry entries[ENTRIES];
 
     auto get_history(unsigned int full_history) {
       return (unsigned long long) full_history & BITS2MASK(BITS_HISTORY);
@@ -252,7 +280,7 @@ class TageComponent : public BaseTageComponent<BITS_KEY, BITS_TAG, BITS_USEFULNE
 
     unsigned int get_hash(unsigned int pc, unsigned int full_history) {
       auto index = (this->get_key(pc) << BITS_HISTORY) | get_history(full_history);
-      return (index) % BITS2ENTRIES(BITS_HASH);
+      return (index) % ENTRIES;
     }
 
     Entry* get_entry(unsigned int pc, unsigned int full_history) override {
@@ -297,13 +325,19 @@ class TagePredictor {
 
   public:
     TagePredictor() {
-      components.push_back(new TageComponent<0, BITS_KEY, BITS_TAG, BITS_USEFULNESS, BITS_KEY>());
-      components.push_back(new TageComponent<1, BITS_KEY, BITS_TAG, BITS_USEFULNESS, BITS_KEY+1>());
-      components.push_back(new TageComponent<2, BITS_KEY, BITS_TAG, BITS_USEFULNESS, BITS_KEY+2>());
-      components.push_back(new TageComponent<4, BITS_KEY, BITS_TAG, BITS_USEFULNESS, 11>());
-      components.push_back(new TageComponent<8, BITS_KEY, BITS_TAG, BITS_USEFULNESS, 11>());
-      components.push_back(new TageComponent<16, BITS_KEY, BITS_TAG, BITS_USEFULNESS, 11>());
-      components.push_back(new TageComponent<32, BITS_KEY, BITS_TAG, BITS_USEFULNESS, 11>());
+      // We are using a 3 bit tag, 2 bit counter, and 2 bit usefulness.
+      // This means that each entry occupies 7 bits.
+      // We have access to 128Kb = 128 000 bits of storage.
+      // This means that we must have <= 18 200 rows.
+      // This is between 2^14 and 2^15.
+
+      components.push_back(new TageComponent<0, BITS_KEY, BITS_TAG, BITS_USEFULNESS, 8>());
+      components.push_back(new TageComponent<1, BITS_KEY, BITS_TAG, BITS_USEFULNESS, 16>());
+      components.push_back(new TageComponent<2, BITS_KEY, BITS_TAG, BITS_USEFULNESS, 32>());
+      components.push_back(new TageComponent<4, BITS_KEY, BITS_TAG, BITS_USEFULNESS, 128>());
+      components.push_back(new TageComponent<8, BITS_KEY, BITS_TAG, BITS_USEFULNESS, 800>());
+      components.push_back(new TageComponent<16, BITS_KEY, BITS_TAG, BITS_USEFULNESS, 1200>());
+      components.push_back(new TageComponent<32, BITS_KEY, BITS_TAG, BITS_USEFULNESS, 16100>());
     }
 
     bool predict(unsigned int pc) {
@@ -340,31 +374,11 @@ class TagePredictor {
     }
 };
 
-void InitPredictor_2level() {}
 
-bool GetPrediction_2level(UINT32 PC) {
-  auto pc = (struct keyed_pc_2level*) &PC;
-  auto history = &bhts_2level[pc->bht]; 
-
-  return phts_2level[pc->pht][history->get()].predict();
-}
-
-void UpdatePredictor_2level(UINT32 PC, bool resolveDir, bool predDir, UINT32 branchTarget) {
-  auto pc = (struct keyed_pc_2level*) &PC;
-  auto history = &bhts_2level[pc->bht];
-
-  phts_2level[pc->pht][history->get()].update(resolveDir == predDir);
-  history->update(resolveDir);
-}
-
-/////////////////////////////////////////////////////////////
-// openend
-/////////////////////////////////////////////////////////////
-
-TagePredictor<7, 8, 2> tagePredictor;
+TagePredictor<3, 3, 2> tagePredictor;
 
 void InitPredictor_openend() {
-
+ 
 }
 
 bool GetPrediction_openend(UINT32 PC) {
