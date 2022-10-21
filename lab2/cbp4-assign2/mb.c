@@ -1,25 +1,23 @@
 // easy micro benchmark
-#define ITERS 1000000
+#define ITERS 10000
 
+// Testcase 1:
+// When there is no content in the loop, 1943 mispredicts.
 int main()
 {
-    // this is a simple benchmark, I assume the predictor would have low mispredictions for the loop below because my history table has 6 bits
-    int b;
-    for (int z = 0; z < ITERS; z++)
-    {
-        for (int w = 0; w < 2; w++)
-        {
+    unsigned int i = 0;
+    unsigned int b = 0;
+
+    // This outer while branches (taken) to continue.
+    // It "not takens" only at the end.
+    // Therefore: it should contribute only one mispredict.
+
+    while (i < ITERS) {
+        i += 1;
+        if (i % 7 == 0) {
             b = 1;
         }
     }
-    // b = 2;
-    // this is a more complex benchmark because I assume the predictor would have more mispredicts because in my second loop I assume all 6 bits of history bits would have to be used
-    int a;
-    for (int i = 0; i < ITERS; i++)
-    {
-        for (int j = 0; j < 10; j++)
-            a = 10;
-    }
-    a = 15;
-    return 0;
+    
+    return i + b;
 }
