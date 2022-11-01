@@ -25,9 +25,9 @@
 
 #define INSTR_QUEUE_SIZE 16
 
-#define RESERV_INT_SIZE 4
-#define RESERV_FP_SIZE 2
-#define FU_INT_SIZE 2
+#define RESERV_INT_SIZE 5
+#define RESERV_FP_SIZE 3
+#define FU_INT_SIZE 3
 #define FU_FP_SIZE 1
 
 #define FU_INT_LATENCY 5
@@ -114,6 +114,48 @@ static int fetch_index = 0;
  */
 static bool is_simulation_done(counter_t sim_insn)
 {
+  if (fetch_index > sim_insn)
+  {
+    return true;
+  }
+  int i;
+  for (i = 0; i < INSTR_QUEUE_SIZE; i++)
+  {
+    if (instr_queue[i] != NULL)
+    {
+      return false;
+    }
+  }
+  for (i = 0; i < RESERV_INT_SIZE; i++)
+  {
+    if (reservINT[i] != NULL)
+    {
+      return false;
+    }
+  }
+
+  for (i = 0; i < RESERV_FP_SIZE; i++)
+  {
+    if (reservFP[i] != NULL)
+    {
+      return false;
+    }
+  }
+  for (i = 0; i < FU_INT_SIZE; i++)
+  {
+    if (fuINT[i] != NULL)
+    {
+      return false;
+    }
+  }
+
+  for (i = 0; i < FU_FP_SIZE; i++)
+  {
+    if (fuFP[i] != NULL)
+    {
+      return false;
+    };
+  }
 
   /* ECE552: YOUR CODE GOES HERE */
 
