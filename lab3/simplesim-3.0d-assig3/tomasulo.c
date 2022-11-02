@@ -105,24 +105,24 @@ instruction_trace_t* current_trace = NULL;
 static int current_trace_table_index = 0;
 
 /* FUNCTIONAL UNITS */
-struct functional_unit_t {
+typedef struct {
   // The instruction being processed.
   // If null, then the FU is available.
   instruction_t* instr;
-};
+} functional_unit_t;
 
-struct functional_unit_t int_func_units[FU_INT_SIZE];
-struct functional_unit_t fp_func_units[FU_FP_SIZE];
+functional_unit_t int_func_units[FU_INT_SIZE];
+functional_unit_t fp_func_units[FU_FP_SIZE];
 
 /* RESERVATION STATIONS */
-struct reservation_station_t {
+typedef struct {
   // The instruction being held in this station.
   // If null, then the station is currently empty (i.e, not busy).
   instruction_t* instr;
-};
+} reservation_station_t;
 
-struct reservation_station_t int_reserv_stations[RESERV_INT_SIZE];
-struct reservation_station_t fp_reserv_stations[RESERV_FP_SIZE];
+reservation_station_t int_reserv_stations[RESERV_INT_SIZE];
+reservation_station_t fp_reserv_stations[RESERV_FP_SIZE];
 
 /*
  * Description:
@@ -302,6 +302,16 @@ void remove_first_instr() {
   instr_queue_size--;
 }
 
+// Returns the first free station in an array of stations, if there is one.
+reservation_station_t* get_free_reserv(reservation_station_t* reserv_station_array, int num_stations) {
+  for (int i = 0; i < num_stations; i++) {
+    if (reserv_station_array[i].instr == NULL) {
+      return &reserv_station_array[i];
+    }
+  }
+  return NULL;
+}
+
 /*
  * Description:
  * 	Calls fetch and dispatches an instruction at the same cycle (if possible)
@@ -328,30 +338,20 @@ void fetch_To_dispatch(instruction_trace_t *trace, int current_cycle)
     return;
   } 
 
-  if (IS_FCOMP(instr->op)) {
-    // Dispatch to the first free reservation station, if present.
-    // Otherwise, no dispatch possible this cycle.
-    for (int i = 0; i < RESERV_FP_SIZE; i++) {
-      if (fp_reserv_stations[i].instr == NULL) {
-        fp_reserv_stations[i].instr = instr;
+  if (USES_FP_FU(instr->op)) {
+      reservation_station_t* station = get_free_reserv(fp_reserv_stations, RESERV_FP_SIZE);
+      if (station != NULL) {
+        station->instr = instr;
         // TODO: handle renaming.
         remove_first_instr();
-        return;
       }
-    }
-    return;
-  }
-
-  if (IS_ICOMP(instr->op) || IS_LOAD(instr->op) || IS_STORE(instr->op)) {
-    for (int i = 0; i < RESERV_FP_SIZE; i++) {
-      if (int_reserv_stations[i].instr == NULL) {
-        int_reserv_stations[i].instr = instr;
+  } else if (USES_INT_FU(instr->op)) {
+      reservation_station_t* station = get_free_reserv(int_reserv_stations, RESERV_INT_SIZE);
+      if (station != NULL) {
+        station->instr = instr;
         // TODO: handle renaming.
         remove_first_instr();
-        return;
       }
-    }
-    return;
   }
 
   // If we reach here, it's an error.
