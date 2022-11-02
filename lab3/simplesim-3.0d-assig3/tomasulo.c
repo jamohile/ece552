@@ -312,6 +312,29 @@ reservation_station_t* get_free_reserv(reservation_station_t* reserv_station_arr
   return NULL;
 }
 
+// Apply register renaming to an instruction.
+// This includes both updating the map-table, and updating the instruction based on this table.
+void apply_register_renaming(instruction_t* instr) {
+  // Remap outputs.
+  for (int i = 0; i < 2; i++) {
+    int reg = instr->r_out[i];
+    if (reg != DNA) {
+      map_table[reg] = instr;
+    }
+  }
+
+  // Map in inputs.
+  for (int i = 0; i < 3; i++) {
+    int reg = instr->r_in[i];
+    if (reg != DNA) {
+      // Note, if the value is already ready, map_table entry will be null.
+      // This is equivalent to there being no value there, which is OK for cycle-sim,
+      // since we're not actually computing anything.
+      instr->Q[i] = map_table[reg];
+    }
+  }
+}
+
 /*
  * Description:
  * 	Calls fetch and dispatches an instruction at the same cycle (if possible)
@@ -338,23 +361,23 @@ void fetch_To_dispatch(instruction_trace_t *trace, int current_cycle)
     return;
   } 
 
+  // Find a station that can accept our dispatch.
+  // TODO: this needs to be checked.
+  //       the spec says to dispatch if station will be free *next* cycle, not 100% sure this accounts for that.
+  reservation_station_t* assigned_station = NULL;
+
   if (USES_FP_FU(instr->op)) {
-      reservation_station_t* station = get_free_reserv(fp_reserv_stations, RESERV_FP_SIZE);
-      if (station != NULL) {
-        station->instr = instr;
-        // TODO: handle renaming.
-        remove_first_instr();
-      }
+    assigned_station = get_free_reserv(fp_reserv_stations, RESERV_FP_SIZE);
   } else if (USES_INT_FU(instr->op)) {
-      reservation_station_t* station = get_free_reserv(int_reserv_stations, RESERV_INT_SIZE);
-      if (station != NULL) {
-        station->instr = instr;
-        // TODO: handle renaming.
-        remove_first_instr();
-      }
+    assigned_station = get_free_reserv(int_reserv_stations, RESERV_INT_SIZE);
   }
 
-  // If we reach here, it's an error.
+  // Actually handle the dispatch, if possible.
+  if (assigned_station != NULL) {
+    assigned_station->instr = instr;
+    apply_register_renaming(instr);
+    remove_first_instr();
+  }
 }
 
 /*
