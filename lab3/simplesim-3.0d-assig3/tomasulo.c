@@ -100,8 +100,18 @@ static instruction_t *map_table[MD_TOTAL_REGS];
 static int fetch_index = 0;
 
 /* FUNCTIONAL UNITS */
+struct functional_unit_t {
+  // The instruction being processed.
+  // If null, then the FU is available.
+  instruction_t* instr;
+}
 
 /* RESERVATION STATIONS */
+struct reservation_station_t {
+  // The instruction being held in this station.
+  // If null, then the station is currently empty (i.e, not busy).
+  instruction_t* instr;
+}
 
 /*
  * Description:
