@@ -291,6 +291,17 @@ void fetch(instruction_trace_t *trace)
   advance_trace();
 }
 
+// Remove the first instruction from the queue, and shift all others forward.
+void remove_first_instr() {
+  for (int i = 0; i < INSTR_QUEUE_SIZE - 1; i++) {
+    instr_queue[i] = instr_queue[i + 1];
+  }
+
+  // The last element will become null, since nothing to fill it.
+  instr_queue[INSTR_QUEUE_SIZE - 1] = NULL;
+  instr_queue_size--;
+}
+
 /*
  * Description:
  * 	Calls fetch and dispatches an instruction at the same cycle (if possible)
@@ -305,7 +316,45 @@ void fetch_To_dispatch(instruction_trace_t *trace, int current_cycle)
 
   fetch(trace);
 
-  /* ECE552: YOUR CODE GOES HERE */
+  // We may be able to dispatch the head of the IFQ, if its RS is free.
+  instruction_t* instr = instr_queue[0];
+  if (instr == NULL) {
+    return;
+  }
+
+  // Branches get handled as a cycle, but are not dispatched.
+  if (IS_COND_CTRL(instr->op) || IS_UNCOND_CTRL(instr->op)) {
+    remove_first_instr();
+    return;
+  } 
+
+  if (IS_FCOMP(instr->op)) {
+    // Dispatch to the first free reservation station, if present.
+    // Otherwise, no dispatch possible this cycle.
+    for (int i = 0; i < RESERV_FP_SIZE; i++) {
+      if (fp_reserv_stations[i].instr == NULL) {
+        fp_reserv_stations[i].instr = instr;
+        // TODO: handle renaming.
+        remove_first_instr();
+        return;
+      }
+    }
+    return;
+  }
+
+  if (IS_ICOMP(instr->op) || IS_LOAD(instr->op) || IS_STORE(instr->op)) {
+    for (int i = 0; i < RESERV_FP_SIZE; i++) {
+      if (int_reserv_stations[i].instr == NULL) {
+        int_reserv_stations[i].instr = instr;
+        // TODO: handle renaming.
+        remove_first_instr();
+        return;
+      }
+    }
+    return;
+  }
+
+  // If we reach here, it's an error.
 }
 
 /*
