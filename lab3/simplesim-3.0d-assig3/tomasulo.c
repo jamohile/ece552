@@ -78,8 +78,7 @@
 /* VARIABLES */
 
 // instruction queue for tomasulo
-static instruction_t *instr_queue[INSTR_QUEUE_SIZE];
-// number of instructions in the instruction queue
+static instruction_t* instr_queue[INSTR_QUEUE_SIZE];
 static int instr_queue_size = 0;
 
 // reservation stations (each reservation station entry contains a pointer to an instruction)
@@ -98,6 +97,12 @@ static instruction_t *map_table[MD_TOTAL_REGS];
 
 // the index of the last instruction fetched
 static int fetch_index = 0;
+
+// The current trace being fetched from, 
+// and the current index of the instruction to fetch within that trace.
+// Note, the index here is based on the trace table *array*, not the instruction's index property.
+instruction_trace_t* current_trace = NULL;
+static int current_trace_table_index = 0;
 
 /* FUNCTIONAL UNITS */
 struct functional_unit_t {
@@ -236,6 +241,16 @@ void dispatch_To_issue(int current_cycle)
   /* ECE552: YOUR CODE GOES HERE */
 }
 
+// Move the current trace forward by one index.
+// This handles simultaneously advancing the array index, and the linked list.
+void advance_trace() {
+    current_trace_table_index += 1;
+    if (current_trace_table_index >= current_trace->size) {
+      current_trace = current_trace->next;
+      current_trace_table_index = 0;
+    }
+}
+
 /*
  * Description:
  * 	Grabs an instruction from the instruction trace (if possible)
@@ -251,19 +266,29 @@ void fetch(instruction_trace_t *trace)
     return;
   }
 
-  // We cannot fetch a new instruction if no more exist.
-  // Note that the trace is actually a linked list, with a block of instrs in each node.
-  // We assume (1) the caller has advanced to the right node.
-  //           (2) fetch_index is set not globally, but at the trace level.
-  if (fetch_index >= trace->size) {
+  // If there is nothing more to fetch, don't.
+  if (current_trace == NULL) {
     return;
   }
 
-  // Otherwise, a new instruction can be fetched and queued.
-  *instr_queue[instr_queue_size] = trace->table[fetch_index];
+  // Now, we assume that the current index is a valid one: can be read.
+  // However, it may be a trap. If so, advance until we find a non-trap.
+  while (IS_TRAP(current_trace->table[fetch_index].op)) {
+    advance_trace();
+  }
 
+  // It's possible that after advancing, we have no more valid instructions to read.
+  if (current_trace == NULL) {
+    return;
+  }
+
+  // Otherwise, we should have valid data.
+  instruction_t* instr = &current_trace->table[current_trace_table_index];
+  fetch_index = instr->index;
+  instr_queue[instr_queue_size] = instr;
   instr_queue_size++;
-  fetch_index++;
+
+  advance_trace();
 }
 
 /*
