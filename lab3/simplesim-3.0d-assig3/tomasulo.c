@@ -104,14 +104,20 @@ struct functional_unit_t {
   // The instruction being processed.
   // If null, then the FU is available.
   instruction_t* instr;
-}
+};
+
+struct functional_unit_t int_func_units[FU_INT_SIZE];
+struct functional_unit_t fp_func_units[FU_FP_SIZE];
 
 /* RESERVATION STATIONS */
 struct reservation_station_t {
   // The instruction being held in this station.
   // If null, then the station is currently empty (i.e, not busy).
   instruction_t* instr;
-}
+};
+
+struct reservation_station_t int_reserv_stations[RESERV_INT_SIZE];
+struct reservation_station_t fp_reserv_stations[RESERV_FP_SIZE];
 
 /*
  * Description:
