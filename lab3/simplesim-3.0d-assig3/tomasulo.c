@@ -246,8 +246,24 @@ void dispatch_To_issue(int current_cycle)
  */
 void fetch(instruction_trace_t *trace)
 {
+  // We cannot fetch a new instruction if there is no room.
+  if (instr_queue_size >= INSTR_QUEUE_SIZE) {
+    return;
+  }
 
-  /* ECE552: YOUR CODE GOES HERE */
+  // We cannot fetch a new instruction if no more exist.
+  // Note that the trace is actually a linked list, with a block of instrs in each node.
+  // We assume (1) the caller has advanced to the right node.
+  //           (2) fetch_index is set not globally, but at the trace level.
+  if (fetch_index >= trace->size) {
+    return;
+  }
+
+  // Otherwise, a new instruction can be fetched and queued.
+  *instr_queue[instr_queue_size] = trace->table[fetch_index];
+
+  instr_queue_size++;
+  fetch_index++;
 }
 
 /*
