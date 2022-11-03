@@ -78,7 +78,7 @@
 /* VARIABLES */
 
 // instruction queue for tomasulo
-static instruction_t* instr_queue[INSTR_QUEUE_SIZE];
+static instruction_t *instr_queue[INSTR_QUEUE_SIZE];
 static int instr_queue_size = 0;
 
 // reservation stations (each reservation station entry contains a pointer to an instruction)
@@ -98,27 +98,29 @@ static instruction_t *map_table[MD_TOTAL_REGS];
 // the index of the last instruction fetched
 static int fetch_index = 0;
 
-// The current trace being fetched from, 
+// The current trace being fetched from,
 // and the current index of the instruction to fetch within that trace.
 // Note, the index here is based on the trace table *array*, not the instruction's index property.
-instruction_trace_t* current_trace = NULL;
+instruction_trace_t *current_trace = NULL;
 static int current_trace_table_index = 0;
 
 /* FUNCTIONAL UNITS */
-typedef struct {
+typedef struct
+{
   // The instruction being processed.
   // If null, then the FU is available.
-  instruction_t* instr;
+  instruction_t *instr;
 } functional_unit_t;
 
 functional_unit_t int_func_units[FU_INT_SIZE];
 functional_unit_t fp_func_units[FU_FP_SIZE];
 
 /* RESERVATION STATIONS */
-typedef struct {
+typedef struct
+{
   // The instruction being held in this station.
   // If null, then the station is currently empty (i.e, not busy).
-  instruction_t* instr;
+  instruction_t *instr;
 } reservation_station_t;
 
 reservation_station_t int_reserv_stations[RESERV_INT_SIZE];
@@ -191,8 +193,53 @@ static bool is_simulation_done(counter_t sim_insn)
  * Returns:
  * 	None
  */
+// this function releases Q and release map table entry
 void CDB_To_retire(int current_cycle)
 {
+  // clear maptable
+  if (commonDataBus != NULL)
+  {
+    for (int i = 0; i <= 1; i++)
+    {
+      int maptable_index = commonDataBus->r_out[i];
+      if (map_table[maptable_index] == commonDataBus)
+      {
+        map_table[maptable_index] = NULL;
+      }
+    }
+  }
+  if (commonDataBus != NULL)
+  {
+    for (int i = 0; i < RESERV_INT_SIZE; i++)
+    {
+      for (int j = 0; j < 3; j++)
+      {
+        if (reservINT[RESERV_INT_SIZE] != NULL)
+        {
+          if (reservINT[RESERV_INT_SIZE]->Q[j] == commonDataBus)
+          {
+            reservINT[RESERV_INT_SIZE]->Q[j] == NULL;
+          }
+        }
+      }
+    }
+  }
+  if (commonDataBus != NULL)
+  {
+    for (int i = 0; i < RESERV_INT_SIZE; i++)
+    {
+      for (int j = 0; j < 3; j++)
+      {
+        if (reservFP[RESERV_INT_SIZE] != NULL)
+        {
+          if (reservFP[RESERV_INT_SIZE]->Q[j] == commonDataBus)
+          {
+            reservFP[RESERV_INT_SIZE]->Q[j] == NULL;
+          }
+        }
+      }
+    }
+  }
 
   /* ECE552: YOUR CODE GOES HERE */
 }
@@ -207,7 +254,7 @@ void CDB_To_retire(int current_cycle)
  */
 void execute_To_CDB(int current_cycle)
 {
-
+  if (c)
   /* ECE552: YOUR CODE GOES HERE */
 }
 
@@ -243,12 +290,14 @@ void dispatch_To_issue(int current_cycle)
 
 // Move the current trace forward by one index.
 // This handles simultaneously advancing the array index, and the linked list.
-void advance_trace() {
-    current_trace_table_index += 1;
-    if (current_trace_table_index >= current_trace->size) {
-      current_trace = current_trace->next;
-      current_trace_table_index = 0;
-    }
+void advance_trace()
+{
+  current_trace_table_index += 1;
+  if (current_trace_table_index >= current_trace->size)
+  {
+    current_trace = current_trace->next;
+    current_trace_table_index = 0;
+  }
 }
 
 /*
@@ -262,28 +311,32 @@ void advance_trace() {
 void fetch(instruction_trace_t *trace)
 {
   // We cannot fetch a new instruction if there is no room.
-  if (instr_queue_size >= INSTR_QUEUE_SIZE) {
+  if (instr_queue_size >= INSTR_QUEUE_SIZE)
+  {
     return;
   }
 
   // If there is nothing more to fetch, don't.
-  if (current_trace == NULL) {
+  if (current_trace == NULL)
+  {
     return;
   }
 
   // Now, we assume that the current index is a valid one: can be read.
   // However, it may be a trap. If so, advance until we find a non-trap.
-  while (IS_TRAP(current_trace->table[fetch_index].op)) {
+  while (IS_TRAP(current_trace->table[fetch_index].op))
+  {
     advance_trace();
   }
 
   // It's possible that after advancing, we have no more valid instructions to read.
-  if (current_trace == NULL) {
+  if (current_trace == NULL)
+  {
     return;
   }
 
   // Otherwise, we should have valid data.
-  instruction_t* instr = &current_trace->table[current_trace_table_index];
+  instruction_t *instr = &current_trace->table[current_trace_table_index];
   fetch_index = instr->index;
   instr_queue[instr_queue_size] = instr;
   instr_queue_size++;
@@ -292,8 +345,10 @@ void fetch(instruction_trace_t *trace)
 }
 
 // Remove the first instruction from the queue, and shift all others forward.
-void remove_first_instr() {
-  for (int i = 0; i < INSTR_QUEUE_SIZE - 1; i++) {
+void remove_first_instr()
+{
+  for (int i = 0; i < INSTR_QUEUE_SIZE - 1; i++)
+  {
     instr_queue[i] = instr_queue[i + 1];
   }
 
@@ -303,9 +358,12 @@ void remove_first_instr() {
 }
 
 // Returns the first free station in an array of stations, if there is one.
-reservation_station_t* get_free_reserv(reservation_station_t* reserv_station_array, int num_stations) {
-  for (int i = 0; i < num_stations; i++) {
-    if (reserv_station_array[i].instr == NULL) {
+reservation_station_t *get_free_reserv(reservation_station_t *reserv_station_array, int num_stations)
+{
+  for (int i = 0; i < num_stations; i++)
+  {
+    if (reserv_station_array[i].instr == NULL)
+    {
       return &reserv_station_array[i];
     }
   }
@@ -314,19 +372,24 @@ reservation_station_t* get_free_reserv(reservation_station_t* reserv_station_arr
 
 // Apply register renaming to an instruction.
 // This includes both updating the map-table, and updating the instruction based on this table.
-void apply_register_renaming(instruction_t* instr) {
+void apply_register_renaming(instruction_t *instr)
+{
   // Remap outputs.
-  for (int i = 0; i < 2; i++) {
+  for (int i = 0; i < 2; i++)
+  {
     int reg = instr->r_out[i];
-    if (reg != DNA) {
+    if (reg != DNA)
+    {
       map_table[reg] = instr;
     }
   }
 
   // Map in inputs.
-  for (int i = 0; i < 3; i++) {
+  for (int i = 0; i < 3; i++)
+  {
     int reg = instr->r_in[i];
-    if (reg != DNA) {
+    if (reg != DNA)
+    {
       // Note, if the value is already ready, map_table entry will be null.
       // This is equivalent to there being no value there, which is OK for cycle-sim,
       // since we're not actually computing anything.
@@ -350,30 +413,36 @@ void fetch_To_dispatch(instruction_trace_t *trace, int current_cycle)
   fetch(trace);
 
   // We may be able to dispatch the head of the IFQ, if its RS is free.
-  instruction_t* instr = instr_queue[0];
-  if (instr == NULL) {
+  instruction_t *instr = instr_queue[0];
+  if (instr == NULL)
+  {
     return;
   }
 
   // Branches get handled as a cycle, but are not dispatched.
-  if (IS_COND_CTRL(instr->op) || IS_UNCOND_CTRL(instr->op)) {
+  if (IS_COND_CTRL(instr->op) || IS_UNCOND_CTRL(instr->op))
+  {
     remove_first_instr();
     return;
-  } 
+  }
 
   // Find a station that can accept our dispatch.
   // TODO: this needs to be checked.
   //       the spec says to dispatch if station will be free *next* cycle, not 100% sure this accounts for that.
-  reservation_station_t* assigned_station = NULL;
+  reservation_station_t *assigned_station = NULL;
 
-  if (USES_FP_FU(instr->op)) {
+  if (USES_FP_FU(instr->op))
+  {
     assigned_station = get_free_reserv(fp_reserv_stations, RESERV_FP_SIZE);
-  } else if (USES_INT_FU(instr->op)) {
+  }
+  else if (USES_INT_FU(instr->op))
+  {
     assigned_station = get_free_reserv(int_reserv_stations, RESERV_INT_SIZE);
   }
 
   // Actually handle the dispatch, if possible.
-  if (assigned_station != NULL) {
+  if (assigned_station != NULL)
+  {
     assigned_station->instr = instr;
     apply_register_renaming(instr);
     remove_first_instr();
