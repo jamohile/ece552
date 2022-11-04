@@ -218,7 +218,7 @@ void CDB_To_retire(int current_cycle)
         {
           if (reservINT[RESERV_INT_SIZE]->Q[j] == commonDataBus)
           {
-            reservINT[RESERV_INT_SIZE]->Q[j] == NULL;
+            reservINT[RESERV_INT_SIZE]->Q[j] = NULL;
           }
         }
       }
@@ -234,7 +234,7 @@ void CDB_To_retire(int current_cycle)
         {
           if (reservFP[RESERV_INT_SIZE]->Q[j] == commonDataBus)
           {
-            reservFP[RESERV_INT_SIZE]->Q[j] == NULL;
+            reservFP[RESERV_INT_SIZE]->Q[j] = NULL;
           }
         }
       }
@@ -252,12 +252,143 @@ void CDB_To_retire(int current_cycle)
  * Returns:
  * 	None
  */
+// this function only cares about cdb 
 void execute_To_CDB(int current_cycle)
 {
-  if (c)
+  if (commonDataBus !=NULL) {
+    return;
+  }
+  
+  else {
+    int earliestindexfuint = -1; 
+    int earliestindexfufp = -1;
+    // check fu_int first 
+    for (int i=0; i<FU_INT_SIZE; i++) {
+      
+
+      instruction_t* instructionfuint = fuINT[i];
+      //int curr_index =0;
+      if (instructionfuint!=NULL) {
+        if (!IS_STORE(instructionfuint->op) ) {
+          // if this instruction is completed 
+          if (instructionfuint->tom_execute_cycle + FU_INT_LATENCY <= current_cycle) {   
+            earliestindexfuint = instructionfuint->index;
+            break;
+          }
+        }
+      }
+    }
+    for (int i=0; i<FU_INT_SIZE; i++) {
+      instruction_t* instructionfuint = fuINT[i];
+      if (instructionfuint!=NULL) {
+        if (!IS_STORE(instructionfuint->op)) {
+          // if this instruction is completed 
+          if (instructionfuint->tom_execute_cycle + FU_INT_LATENCY <= current_cycle) {   
+            if (earliestindexfuint > instructionfuint->index) {
+              earliestindexfuint = instructionfuint->index;  
+            }
+            break;
+          }
+        }
+      }
+    }  
+    // check for store operations // clear tom_cdb_cycle and reservation station
+    for (int i=0; i<FU_INT_SIZE; i++) {
+      instruction_t* instructionfuint = fuINT[i];
+      if (instructionfuint!=NULL) {
+        if (IS_STORE(instructionfuint->op)) {
+          if ( instructionfuint->tom_execute_cycle + FU_INT_LATENCY <= current_cycle) {
+            instructionfuint -> tom_cdb_cycle  = 0;
+            for (int j=0; j<RESERV_INT_SIZE; j++) {
+              if(reservINT[j] == instructionfuint) {
+                reservINT[j]=NULL; 
+                 
+              }  
+            }
+
+          }
+        }    
+      }
+     // fuINT[i] == NULL;
+    }
+    // check fu_fp second
+    for (int i=0; i<FU_FP_SIZE;i++) {
+      // exclude stores/ conditional and unconditional branches, jumps, and calls
+      // tom_execute_cycle + latency and compare this with current_cycle 
+      // find earliest index 
+
+      instruction_t* instructionfufp = fuFP[i];
+      //int curr_index =0;
+      if (instructionfufp!=NULL) {
+        if (!IS_STORE(instructionfufp->op) && !IS_COND_CTRL(instructionfufp->op) && !IS_UNCOND_CTRL(instructionfufp->op)) {
+          // if this instruction is completed 
+          if (instructionfufp->tom_execute_cycle + FU_INT_LATENCY <= current_cycle) {   
+            earliestindexfufp = instructionfufp->index;
+            break;
+          }
+        }
+      }
+    }
+    for (int i=0; i<FU_INT_SIZE; i++) {
+      instruction_t* instructionfufp = fuFP[i];
+      if (instructionfufp!=NULL) {
+        if (!IS_STORE(instructionfufp->op) && !IS_COND_CTRL(instructionfufp->op) && !IS_UNCOND_CTRL(instructionfufp->op)) {
+          // if this instruction is completed 
+          if (instructionfufp->tom_execute_cycle + FU_INT_LATENCY <= current_cycle) {   
+            if (earliestindexfufp > instructionfufp->index) {
+              earliestindexfufp = instructionfufp->index;  
+            }
+            break;
+          }
+        }
+      }
+    }  
+    // check for store operations // clear tom_cdb_cycle and reservation station
+    for (int i=0; i<FU_INT_SIZE; i++) {
+     instruction_t* instructionfufp = fuFP[i];
+      if (instructionfufp!=NULL) {
+        if (IS_STORE(instructionfufp->op)) {
+          if ( instructionfufp->tom_execute_cycle + FU_INT_LATENCY <= current_cycle) {
+            instructionfufp -> tom_cdb_cycle  = 0;
+            for (int j=0; j<RESERV_INT_SIZE; j++) {
+              if(reservFP[j] == instructionfufp) {
+                reservFP[j]=NULL;  
+              }  
+            }
+
+          }
+        }    
+      }
+     // fuINT[i] == NULL;
+    }
+    // int earliestindexfuint = -1; 
+   // int earliestindexfufp = -1;
+    if (earliestindexfuint <earliestindexfufp && earliestindexfuint!=-1) {
+      for (int i=0; i<FU_INT_SIZE; i++) {
+        if(fuINT[i]!=NULL) {
+          if (fuINT[i]->index == earliestindexfuint) {
+            commonDataBus = fuINT[i];  
+            fuINT[i] = NULL;
+          }
+        }    
+      }
+    }
+    if (earliestindexfufp <earliestindexfuint && earliestindexfufp!=-1) {
+      for (int i=0; i<FU_INT_SIZE; i++) {
+        if(fuINT[i]!=NULL ) {
+          if (fuINT[i]->index == earliestindexfuint) {
+            commonDataBus = fuINT[i];    
+            fuINT[i] = NULL;
+          }
+        }    
+      }
+    }
+    // check fu_fp
+
+
+  }
   /* ECE552: YOUR CODE GOES HERE */
 }
-
 /*
  * Description:
  * 	Moves instruction(s) from the issue to the execute stage (if possible). We prioritize old instructions
