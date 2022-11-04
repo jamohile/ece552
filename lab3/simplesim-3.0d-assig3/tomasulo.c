@@ -389,6 +389,62 @@ void execute_To_CDB(int current_cycle)
   }
   /* ECE552: YOUR CODE GOES HERE */
 }
+
+bool has_raw_dependences(instruction_t* instr) {
+  for (int q = 0; q < 3; q++) {
+    if (instr->Q[q] != NULL) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Returns the first free functional unit in an array of functional units, if there is one.
+functional_unit_t* get_free_func_unit(functional_unit_t *func_units, int num_func_units)
+{
+  for (int i = 0; i < num_func_units; i++)
+  {
+    if (func_units[i].instr == NULL)
+    {
+      return &func_units[i];
+    }
+  }
+  return NULL;
+}
+
+// Given a bank of reservation stations, and another bank of functional units, move as many entries as possible from issue to execute.
+// That is, assign free instructions to free functional units, favouring older instructions (based on program count)
+void move_issue_to_execute_if_ready(int current_cycle, reservation_station_t* stations, int num_stations, functional_unit_t* func_units, int num_func_units) {
+  while (get_free_func_unit(func_units, num_func_units) != NULL) {
+    instruction_t* execution_candidate = NULL;
+    for (int i = 0; i > num_stations; i++) {
+      instruction_t* instr = stations[i].instr;
+      
+      // We can't execute an instruction that is still waiting for data.
+      if (has_raw_dependences(instr)) {
+        continue;
+      }
+
+      // We can only execute instructions that have not yet executed (duh) and have been in issue for >= 1 cycle.
+      if (instr->tom_issue_cycle < current_cycle && instr->tom_execute_cycle == -1) {
+        // Favour running older instructions first. (old = lower index)
+        if (execution_candidate == NULL || instr->index < execution_candidate->index) {
+          execution_candidate = instr;
+        }
+      }
+    }
+
+    // Ultimately, we can schedule the execution candidate for execution.
+    // However, if there was no candidate, no point continuing to search, even if FUs still exist.
+    if (execution_candidate != NULL) {
+      execution_candidate->tom_execute_cycle = current_cycle;
+      get_free_func_unit()->instr = execution_candidate;
+    } else {
+      break;
+    }
+  }
+}
+
 /*
  * Description:
  * 	Moves instruction(s) from the issue to the execute stage (if possible). We prioritize old instructions
@@ -401,14 +457,14 @@ void execute_To_CDB(int current_cycle)
  */
 void issue_To_execute(int current_cycle)
 {
-
-  /* ECE552: YOUR CODE GOES HERE */
+  move_issue_to_execute_if_ready(current_cycle, int_reserv_stations, RESERV_INT_SIZE, int_func_units, FU_INT_SIZE);
+  move_issue_to_execute_if_ready(current_cycle, fp_reserv_stations, RESERV_FP_SIZE, fp_func_units, FU_FP_SIZE);
 }
 
 // Given a bank of reservation stations, move each entry from dispatch to issue, if it is ready.
 // Any dispatched instruction immediately moves to issue after one cycle.
 // In issue, it will now wait for all RAW dependences to be resolved.
-void move_dispatch_to_issue_if_ready(reservation_station_t* stations, int num_stations) {
+void move_dispatch_to_issue_if_ready(int current_cycle, reservation_station_t* stations, int num_stations) {
   for (int i = 0; i < num_stations; i++) {
     instruction_t* instr = stations[i].instr;
     
@@ -434,8 +490,8 @@ void move_dispatch_to_issue_if_ready(reservation_station_t* stations, int num_st
  */
 void dispatch_To_issue(int current_cycle)
 {
-  move_dispatch_to_issue_if_ready(int_reserv_stations, RESERV_INT_SIZE);
-  move_dispatch_to_issue_if_ready(fp_reserv_stations, RESERV_FP_SIZE);
+  move_dispatch_to_issue_if_ready(current_cycle, int_reserv_stations, RESERV_INT_SIZE);
+  move_dispatch_to_issue_if_ready(current_cycle, fp_reserv_stations, RESERV_FP_SIZE);
 }
 
 // Move the current trace forward by one index.
