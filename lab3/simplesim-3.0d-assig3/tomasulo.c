@@ -404,7 +404,7 @@ void move_dispatch_to_issue_if_ready(int current_cycle, reservation_station_t* s
     instruction_t* instr = stations[i].instr;
     
     // Don't do anything if the reservation station is empty.
-    if (instr!= NULL) {
+    if (instr == NULL) {
       continue;
     }
 
@@ -584,7 +584,7 @@ counter_t runTomasulo(instruction_trace_t *trace)
     // This will also free the resources those instructions had used.
     execute_To_CDB(cycle);
     CDB_To_retire(cycle);
-  
+
     // Fetch a new instruction, and dispatch if possible.
     // This may use a RS that was just free above.
     fetch_To_dispatch(trace, cycle);
