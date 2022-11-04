@@ -78,22 +78,22 @@
 /* VARIABLES */
 
 // instruction queue for tomasulo
-static instruction_t *instr_queue[INSTR_QUEUE_SIZE];
+static instruction_t *instr_queue[INSTR_QUEUE_SIZE] = { 0 };
 static int instr_queue_size = 0;
 
 // reservation stations (each reservation station entry contains a pointer to an instruction)
-static instruction_t *reservINT[RESERV_INT_SIZE];
-static instruction_t *reservFP[RESERV_FP_SIZE];
+static instruction_t *reservINT[RESERV_INT_SIZE] = { 0 };
+static instruction_t *reservFP[RESERV_FP_SIZE] = { 0 };
 
 // functional units
-static instruction_t *fuINT[FU_INT_SIZE];
-static instruction_t *fuFP[FU_FP_SIZE];
+static instruction_t *fuINT[FU_INT_SIZE] = { 0 };
+static instruction_t *fuFP[FU_FP_SIZE] = { 0 };
 
 // common data bus
 static instruction_t *commonDataBus = NULL;
 
 // The map table keeps track of which instruction produces the value for each register
-static instruction_t *map_table[MD_TOTAL_REGS];
+static instruction_t *map_table[MD_TOTAL_REGS] = { 0 };
 
 // the index of the last instruction fetched
 static int fetch_index = 0;
@@ -112,8 +112,8 @@ typedef struct
   instruction_t *instr;
 } functional_unit_t;
 
-functional_unit_t int_func_units[FU_INT_SIZE];
-functional_unit_t fp_func_units[FU_FP_SIZE];
+functional_unit_t int_func_units[FU_INT_SIZE] = { 0 };
+functional_unit_t fp_func_units[FU_FP_SIZE] = { 0 };
 
 /* RESERVATION STATIONS */
 typedef struct
@@ -123,8 +123,8 @@ typedef struct
   instruction_t *instr;
 } reservation_station_t;
 
-reservation_station_t int_reserv_stations[RESERV_INT_SIZE];
-reservation_station_t fp_reserv_stations[RESERV_FP_SIZE];
+reservation_station_t int_reserv_stations[RESERV_INT_SIZE] = { 0 };
+reservation_station_t fp_reserv_stations[RESERV_FP_SIZE] = { 0 };
 
 /*
  * Description:
@@ -629,42 +629,6 @@ void fetch_To_dispatch(instruction_trace_t *trace, int current_cycle)
  */
 counter_t runTomasulo(instruction_trace_t *trace)
 {
-  // initialize instruction queue
-  int i;
-  for (i = 0; i < INSTR_QUEUE_SIZE; i++)
-  {
-    instr_queue[i] = NULL;
-  }
-
-  // initialize reservation stations
-  for (i = 0; i < RESERV_INT_SIZE; i++)
-  {
-    reservINT[i] = NULL;
-  }
-
-  for (i = 0; i < RESERV_FP_SIZE; i++)
-  {
-    reservFP[i] = NULL;
-  }
-
-  // initialize functional units
-  for (i = 0; i < FU_INT_SIZE; i++)
-  {
-    fuINT[i] = NULL;
-  }
-
-  for (i = 0; i < FU_FP_SIZE; i++)
-  {
-    fuFP[i] = NULL;
-  }
-
-  // initialize map_table to no producers
-  int reg;
-  for (reg = 0; reg < MD_TOTAL_REGS; reg++)
-  {
-    map_table[reg] = NULL;
-  }
-
   int cycle = 1;
   while (true)
   {
