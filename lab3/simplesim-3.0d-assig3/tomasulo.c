@@ -244,6 +244,14 @@ void CDB_To_retire(int current_cycle)
   /* ECE552: YOUR CODE GOES HERE */
 }
 
+bool fu_is_empty(functional_unit_t* fu) {
+  return fu->instr == NULL;
+}
+
+bool is_done_executing(instruction_t* instr, int latency, int current_cycle) {
+  return current_cycle >= (instr->tom_execute_cycle + latency);
+}
+
 // Search functional units for an instruction that is ready to broadcast to the CDB.
 // If there are multiple, the youngest one wins.
 functional_unit_t* get_cdb_candidate(int current_cycle, functional_unit_t* func_units, int num_func_units, int func_unit_latency) {
@@ -252,18 +260,13 @@ functional_unit_t* get_cdb_candidate(int current_cycle, functional_unit_t* func_
   for (int i = 0; i < num_func_units; i++) {
     functional_unit_t* func_unit = &func_units[i];
 
-    // If the func unit is empty, it can't broadcast.
-    if (func_unit->instr == NULL) {
-      continue;
-    }
-    
-    // If the instruction is a store, it does not broadcast.
-    if (IS_STORE(func_units->instr->op)) {
+    // Empty or ongoing FUs cannot broadcast.
+    if (fu_is_empty(func_unit) || !is_done_executing(func_unit->instr, func_unit_latency, current_cycle)) {
       continue;
     }
 
-    // If the instruction isn't done, it can't broadcast.
-    if (current_cycle < func_unit->instr->tom_execute_cycle + func_unit_latency) {
+    // If the instruction is a store, it does not broadcast.
+    if (IS_STORE(func_units->instr->op)) {
       continue;
     }
 
@@ -277,19 +280,16 @@ functional_unit_t* get_cdb_candidate(int current_cycle, functional_unit_t* func_
   return cdb_candidate;
 }
 
-void cleanup_completed_stores(int current_cycle, reservation_station_t* stations, int num_stations, functional_unit_t* func_units, int num_func_units) {
+void cleanup_completed_stores(int current_cycle, reservation_station_t* stations, int num_stations, functional_unit_t* func_units, int num_func_units, int func_unit_latency) {
   for (int i = 0; i < num_func_units; i++) {
     functional_unit_t* func_unit = &func_units[i];
 
-    if (func_unit->instr == NULL) {
+    // Stores are not complete if the FU is empty, or they are still running.
+    if (fu_is_empty(func_unit) || !is_done_executing(func_unit->instr, func_unit_latency, current_cycle)) {
       continue;
     }
 
     if (!IS_STORE(func_unit->instr->op)) {
-      continue;
-    }
-
-    if (current_cycle < func_unit->instr->tom_execute_cycle + func_unit_latency) {
       continue;
     }
 
