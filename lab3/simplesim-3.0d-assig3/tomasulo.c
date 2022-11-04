@@ -438,7 +438,7 @@ void move_issue_to_execute_if_ready(int current_cycle, reservation_station_t* st
     // However, if there was no candidate, no point continuing to search, even if FUs still exist.
     if (execution_candidate != NULL) {
       execution_candidate->tom_execute_cycle = current_cycle;
-      get_free_func_unit()->instr = execution_candidate;
+      get_free_func_unit(func_units, num_func_units)->instr = execution_candidate;
     } else {
       break;
     }
