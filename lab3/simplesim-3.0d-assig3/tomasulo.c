@@ -352,7 +352,7 @@ void move_issue_to_execute_if_ready(int current_cycle, reservation_station_t* st
   while (get_free_func_unit(func_units, num_func_units) != NULL) {
     reservation_station_t* execution_candidate = NULL;
 
-    for (int i = 0; i > num_stations; i++) {
+    for (int i = 0; i < num_stations; i++) {
       reservation_station_t* station = &stations[i];
       
       // We can't execute if the station is empty or still waiting for data.
