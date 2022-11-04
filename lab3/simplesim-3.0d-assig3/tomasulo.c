@@ -361,7 +361,7 @@ void move_issue_to_execute_if_ready(int current_cycle, reservation_station_t* st
       }
 
       // We can only execute instructions that have not yet executed (duh) and have been in issue for >= 1 cycle.
-      if (station->instr->tom_issue_cycle < current_cycle && station->instr->tom_execute_cycle == -1) {
+      if (station->instr->tom_issue_cycle < current_cycle && station->instr->tom_execute_cycle == 0) {
         // Favour running older instructions first. (old = lower index)
         if (execution_candidate == NULL || station->instr->index < execution_candidate->instr->index) {
           execution_candidate = station;
@@ -409,7 +409,7 @@ void move_dispatch_to_issue_if_ready(int current_cycle, reservation_station_t* s
     }
 
     // Move if been in dispatch long enough, and not yet in issue.
-    if (instr->tom_dispatch_cycle < current_cycle && instr->tom_issue_cycle == -1) {
+    if (instr->tom_dispatch_cycle < current_cycle && instr->tom_issue_cycle == 0) {
       instr->tom_issue_cycle = current_cycle;
     }
   }
