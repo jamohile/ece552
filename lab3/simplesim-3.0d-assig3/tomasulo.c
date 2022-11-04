@@ -185,6 +185,24 @@ static bool is_simulation_done(counter_t sim_insn)
   return true; // ECE552: you can change this as needed; we've added this so the code provided to you compiles
 }
 
+void notify_reservation_stations(reservation_station_t* stations, int num_stations, instruction_t* completed_instr) {
+  // Find all stations who depend on this result, and 'notify them' it is complete.
+  for (int i = 0; i < num_stations; i++) {
+    reservation_station_t* station = &stations[i];
+    
+    // If the station is empty, it's obviously not waiting.
+    if (station->instr == NULL) {
+      continue;
+    }
+
+    for (int q = 0; q < 3; q++) {
+      if (station->instr->Q[q] == completed_instr) {
+        station->instr->Q[q] = NULL;
+      }
+    }
+  }
+}
+
 /*
  * Description:
  * 	Retires the instruction from writing to the Common Data Bus
@@ -201,8 +219,7 @@ void CDB_To_retire(int current_cycle)
   }
 
   // clear maptable
-
-  for (int i = 0; i <= 1; i++)
+  for (int i = 0; i < 2; i++)
   {
     int maptable_index = commonDataBus->r_out[i];
     if (map_table[maptable_index] == commonDataBus)
@@ -211,35 +228,8 @@ void CDB_To_retire(int current_cycle)
     }
   }
 
-
-  for (int i = 0; i < RESERV_INT_SIZE; i++)
-  {
-    for (int j = 0; j < 3; j++)
-    {
-      if (reservINT[RESERV_INT_SIZE] != NULL)
-      {
-        if (reservINT[RESERV_INT_SIZE]->Q[j] == commonDataBus)
-        {
-          reservINT[RESERV_INT_SIZE]->Q[j] = NULL;
-        }
-      }
-    }
-  }
-
-
-  for (int i = 0; i < RESERV_INT_SIZE; i++)
-  {
-    for (int j = 0; j < 3; j++)
-    {
-      if (reservFP[RESERV_INT_SIZE] != NULL)
-      {
-        if (reservFP[RESERV_INT_SIZE]->Q[j] == commonDataBus)
-        {
-          reservFP[RESERV_INT_SIZE]->Q[j] = NULL;
-        }
-      }
-    }
-  }
+  notify_reservation_stations(int_reserv_stations, RESERV_INT_SIZE, commonDataBus);
+  notify_reservation_stations(fp_reserv_stations, RESERV_FP_SIZE, commonDataBus);
 }
 
 bool is_done_executing(instruction_t* instr, int latency, int current_cycle) {
