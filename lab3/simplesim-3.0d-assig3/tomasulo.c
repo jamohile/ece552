@@ -108,10 +108,12 @@ typedef struct
   // The station who's instruction is currently being executed.
   // Since we dealloc these together, it makes sense to store them together too.
   reservation_station_t* station;
+  int latency;
 } functional_unit_t;
 
-functional_unit_t int_func_units[FU_INT_SIZE] = { 0 };
-functional_unit_t fp_func_units[FU_FP_SIZE] = { 0 };
+// Create two banks of functional units, initializing latencies accordingly.
+functional_unit_t int_func_units[FU_INT_SIZE] = {[0 ...FU_INT_SIZE-1] = {0, .latency=FU_INT_LATENCY}};
+functional_unit_t fp_func_units[FU_FP_SIZE] = {[0 ... FU_FP_SIZE-1] = {0, .latency=FU_FP_LATENCY}};
 
 /*
  * Description:
@@ -228,20 +230,20 @@ void CDB_To_retire(int current_cycle)
   commonDataBus = NULL;
 }
 
-bool is_done_executing(instruction_t* instr, int latency, int current_cycle) {
-  return current_cycle >= (instr->tom_execute_cycle + latency);
+bool is_done_executing(functional_unit_t* func_unit, int current_cycle) {
+  return current_cycle >= (func_unit->station->instr->tom_execute_cycle + func_unit->latency);
 }
 
 // Search functional units for an instruction that is ready to broadcast to the CDB.
 // If there are multiple, the youngest one wins.
-functional_unit_t* get_cdb_candidate(int current_cycle, functional_unit_t* func_units, int num_func_units, int func_unit_latency) {
+functional_unit_t* get_cdb_candidate(int current_cycle, functional_unit_t* func_units, int num_func_units) {
   functional_unit_t* cdb_candidate = NULL;
 
   for (int i = 0; i < num_func_units; i++) {
     functional_unit_t* func_unit = &func_units[i];
 
     // Empty or ongoing FUs cannot broadcast.
-    if (func_unit->station == NULL || !is_done_executing(func_unit->station->instr, func_unit_latency, current_cycle)) {
+    if (func_unit->station == NULL || !is_done_executing(func_unit, current_cycle)) {
       continue;
     }
 
@@ -260,12 +262,12 @@ functional_unit_t* get_cdb_candidate(int current_cycle, functional_unit_t* func_
   return cdb_candidate;
 }
 
-void cleanup_completed_stores(int current_cycle, functional_unit_t* func_units, int num_func_units, int func_unit_latency) {
+void cleanup_completed_stores(int current_cycle, functional_unit_t* func_units, int num_func_units) {
   for (int i = 0; i < num_func_units; i++) {
     functional_unit_t* func_unit = &func_units[i];
 
     // Stores are not complete if the FU is empty, or they are still running.
-    if (func_unit->station == NULL || !is_done_executing(func_unit->station->instr, func_unit_latency, current_cycle)) {
+    if (func_unit->station == NULL || !is_done_executing(func_unit, current_cycle)) {
       continue;
     }
 
@@ -296,8 +298,8 @@ void execute_To_CDB(int current_cycle)
   }
 
   // If there is an instruction ready to broadcast, it should.
-  functional_unit_t* int_cdb_candidate = get_cdb_candidate(current_cycle, int_func_units, FU_INT_SIZE, FU_INT_LATENCY);
-  functional_unit_t* fp_cdb_candidate = get_cdb_candidate(current_cycle, fp_func_units, FU_FP_SIZE, FU_FP_LATENCY);
+  functional_unit_t* int_cdb_candidate = get_cdb_candidate(current_cycle, int_func_units, FU_INT_SIZE);
+  functional_unit_t* fp_cdb_candidate = get_cdb_candidate(current_cycle, fp_func_units, FU_FP_SIZE);
 
   // If only one execution path has a broadcastable instruction, it wins.
   // Otherwise, the younger instruction moves forward.
@@ -320,8 +322,8 @@ void execute_To_CDB(int current_cycle)
   }
 
   // Cleanup any stores, as these do not move to the CDB.
-  cleanup_completed_stores(current_cycle, int_func_units, FU_INT_SIZE, FU_INT_LATENCY);
-  cleanup_completed_stores(current_cycle, fp_func_units, FU_FP_SIZE, FU_FP_LATENCY);
+  cleanup_completed_stores(current_cycle, int_func_units, FU_INT_SIZE);
+  cleanup_completed_stores(current_cycle, fp_func_units, FU_FP_SIZE);
 }
 
 bool has_raw_dependences(instruction_t* instr) {
