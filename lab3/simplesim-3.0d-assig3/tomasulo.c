@@ -178,7 +178,7 @@ static bool is_simulation_done(counter_t sim_insn)
 
   // Make sure the CDB has been consumed.
   if (commonDataBus != NULL) {
-    return false
+    return false;
   }
 
   return true;
