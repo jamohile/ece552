@@ -244,6 +244,70 @@ void CDB_To_retire(int current_cycle)
   /* ECE552: YOUR CODE GOES HERE */
 }
 
+// Search functional units for an instruction that is ready to broadcast to the CDB.
+// If there are multiple, the youngest one wins.
+functional_unit_t* get_cdb_candidate(int current_cycle, functional_unit_t* func_units, int num_func_units, int func_unit_latency) {
+  functional_unit_t* cdb_candidate = NULL;
+
+  for (int i = 0; i < num_func_units; i++) {
+    functional_unit_t* func_unit = &func_units[i];
+
+    // If the func unit is empty, it can't broadcast.
+    if (func_unit->instr == NULL) {
+      continue;
+    }
+    
+    // If the instruction is a store, it does not broadcast.
+    if (IS_STORE(func_units->instr->op)) {
+      continue;
+    }
+
+    // If the instruction isn't done, it can't broadcast.
+    if (current_cycle < func_unit->instr->tom_execute_cycle + func_unit_latency) {
+      continue;
+    }
+
+    // The instruction is able to broadcast!
+    // Select it only if it is the youngest.
+    if (cdb_candidate == NULL || func_unit->instr->index < cdb_candidate->instr->index) {
+      cdb_candidate = func_unit;
+    }
+  }
+
+  return cdb_candidate;
+}
+
+void cleanup_completed_stores(int current_cycle, reservation_station_t* stations, int num_stations, functional_unit_t* func_units, int num_func_units) {
+  for (int i = 0; i < num_func_units; i++) {
+    functional_unit_t* func_unit = &func_units[i];
+
+    if (func_unit->instr == NULL) {
+      continue;
+    }
+
+    if (!IS_STORE(func_unit->instr->op)) {
+      continue;
+    }
+
+    if (current_cycle < func_unit->instr->tom_execute_cycle + func_unit_latency) {
+      continue;
+    }
+
+    // The instruction is a completed store.
+    // Deallocate the reservation station and functional unit.
+    
+    // First, we have to find the associated station.
+    for (int j = 0; j < num_stations; j++) {
+      if (stations[j].instr == func_unit->instr) {
+        stations[j].instr = NULL;
+        break;
+      }
+    }
+
+    func_unit->instr = NULL;
+  }
+}
+
 /*
  * Description:
  * 	Moves an instruction from the execution stage to common data bus (if possible)
@@ -255,139 +319,35 @@ void CDB_To_retire(int current_cycle)
 // this function only cares about cdb 
 void execute_To_CDB(int current_cycle)
 {
-  if (commonDataBus !=NULL) {
+  // If there is already something on the CDB, we can't broadcast.
+  if (commonDataBus != NULL) {
     return;
   }
-  
-  else {
-    int earliestindexfuint = -1; 
-    int earliestindexfufp = -1;
-    // check fu_int first 
-    for (int i=0; i<FU_INT_SIZE; i++) {
-      
 
-      instruction_t* instructionfuint = fuINT[i];
-      //int curr_index =0;
-      if (instructionfuint!=NULL) {
-        if (!IS_STORE(instructionfuint->op) ) {
-          // if this instruction is completed 
-          if (instructionfuint->tom_execute_cycle + FU_INT_LATENCY <= current_cycle) {   
-            earliestindexfuint = instructionfuint->index;
-            break;
-          }
-        }
-      }
-    }
-    for (int i=0; i<FU_INT_SIZE; i++) {
-      instruction_t* instructionfuint = fuINT[i];
-      if (instructionfuint!=NULL) {
-        if (!IS_STORE(instructionfuint->op)) {
-          // if this instruction is completed 
-          if (instructionfuint->tom_execute_cycle + FU_INT_LATENCY <= current_cycle) {   
-            if (earliestindexfuint > instructionfuint->index) {
-              earliestindexfuint = instructionfuint->index;  
-            }
-            break;
-          }
-        }
-      }
-    }  
-    // check for store operations // clear tom_cdb_cycle and reservation station
-    for (int i=0; i<FU_INT_SIZE; i++) {
-      instruction_t* instructionfuint = fuINT[i];
-      if (instructionfuint!=NULL) {
-        if (IS_STORE(instructionfuint->op)) {
-          if ( instructionfuint->tom_execute_cycle + FU_INT_LATENCY <= current_cycle) {
-            instructionfuint -> tom_cdb_cycle  = 0;
-            for (int j=0; j<RESERV_INT_SIZE; j++) {
-              if(reservINT[j] == instructionfuint) {
-                reservINT[j]=NULL; 
-                 
-              }  
-            }
+  // If there is an instruction ready to broadcast, it should.
+  functional_unit_t* int_cdb_candidate = get_cdb_candidate(current_cycle, int_func_units, FU_INT_SIZE, FU_INT_LATENCY);
+  functional_unit_t* fp_cdb_candidate = get_cdb_candidate(current_cycle, fp_func_units, FU_FP_SIZE, FU_FP_LATENCY);
 
-          }
-        }    
-      }
-     // fuINT[i] == NULL;
-    }
-    // check fu_fp second
-    for (int i=0; i<FU_FP_SIZE;i++) {
-      // exclude stores/ conditional and unconditional branches, jumps, and calls
-      // tom_execute_cycle + latency and compare this with current_cycle 
-      // find earliest index 
+  // The younger candidate gets priority.
+  functional_unit_t* cdb_candidate = int_cdb_candidate;
 
-      instruction_t* instructionfufp = fuFP[i];
-      //int curr_index =0;
-      if (instructionfufp!=NULL) {
-        if (!IS_STORE(instructionfufp->op) && !IS_COND_CTRL(instructionfufp->op) && !IS_UNCOND_CTRL(instructionfufp->op)) {
-          // if this instruction is completed 
-          if (instructionfufp->tom_execute_cycle + FU_INT_LATENCY <= current_cycle) {   
-            earliestindexfufp = instructionfufp->index;
-            break;
-          }
-        }
-      }
-    }
-    for (int i=0; i<FU_INT_SIZE; i++) {
-      instruction_t* instructionfufp = fuFP[i];
-      if (instructionfufp!=NULL) {
-        if (!IS_STORE(instructionfufp->op) && !IS_COND_CTRL(instructionfufp->op) && !IS_UNCOND_CTRL(instructionfufp->op)) {
-          // if this instruction is completed 
-          if (instructionfufp->tom_execute_cycle + FU_INT_LATENCY <= current_cycle) {   
-            if (earliestindexfufp > instructionfufp->index) {
-              earliestindexfufp = instructionfufp->index;  
-            }
-            break;
-          }
-        }
-      }
-    }  
-    // check for store operations // clear tom_cdb_cycle and reservation station
-    for (int i=0; i<FU_INT_SIZE; i++) {
-     instruction_t* instructionfufp = fuFP[i];
-      if (instructionfufp!=NULL) {
-        if (IS_STORE(instructionfufp->op)) {
-          if ( instructionfufp->tom_execute_cycle + FU_INT_LATENCY <= current_cycle) {
-            instructionfufp -> tom_cdb_cycle  = 0;
-            for (int j=0; j<RESERV_INT_SIZE; j++) {
-              if(reservFP[j] == instructionfufp) {
-                reservFP[j]=NULL;  
-              }  
-            }
-
-          }
-        }    
-      }
-     // fuINT[i] == NULL;
-    }
-    // int earliestindexfuint = -1; 
-   // int earliestindexfufp = -1;
-    if (earliestindexfuint <earliestindexfufp && earliestindexfuint!=-1) {
-      for (int i=0; i<FU_INT_SIZE; i++) {
-        if(fuINT[i]!=NULL) {
-          if (fuINT[i]->index == earliestindexfuint) {
-            commonDataBus = fuINT[i];  
-            fuINT[i] = NULL;
-          }
-        }    
-      }
-    }
-    if (earliestindexfufp <earliestindexfuint && earliestindexfufp!=-1) {
-      for (int i=0; i<FU_INT_SIZE; i++) {
-        if(fuINT[i]!=NULL ) {
-          if (fuINT[i]->index == earliestindexfuint) {
-            commonDataBus = fuINT[i];    
-            fuINT[i] = NULL;
-          }
-        }    
-      }
-    }
-    // check fu_fp
-
-
+  if (cdb_candidate == NULL) {
+    cdb_candidate = fp_cdb_candidate;
+  } else if (fp_cdb_candidate != NULL && fp_cdb_candidate->instr->index < cdb_candidate->instr->index) {
+    cdb_candidate = fp_cdb_candidate;
   }
-  /* ECE552: YOUR CODE GOES HERE */
+
+  // Now, if we found a broadcastable instruction, broadcast it.
+  // Also, deallocate its functional unit.
+  if (cdb_candidate != NULL) {
+    commonDataBus = cdb_candidate->instr;
+    cdb_candidate->instr = NULL;
+    cdb_candidate->instr->tom_cdb_cycle = current_cycle;
+  }
+
+  // Cleanup any stores, as these do not move to the CDB.
+  cleanup_completed_stores(current_cycle, int_reserv_stations, RESERV_INT_SIZE, int_func_units, FU_INT_SIZE);
+  cleanup_completed_stores(current_cycle, fp_reserv_stations, RESERV_FP_SIZE, fp_func_units, FU_FP_SIZE);
 }
 
 bool has_raw_dependences(instruction_t* instr) {
