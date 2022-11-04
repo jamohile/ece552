@@ -488,17 +488,9 @@ reservation_station_t *get_free_reserv(reservation_station_t *reserv_station_arr
 // This includes both updating the map-table, and updating the instruction based on this table.
 void apply_register_renaming(instruction_t *instr)
 {
-  // Remap outputs.
-  for (int i = 0; i < 2; i++)
-  {
-    int reg = instr->r_out[i];
-    if (reg != DNA)
-    {
-      map_table[reg] = instr;
-    }
-  }
-
   // Map in inputs.
+  // It's important that we do this before the outputs,
+  // otherwise we may end up with circular dependencies.
   for (int i = 0; i < 3; i++)
   {
     int reg = instr->r_in[i];
@@ -508,6 +500,16 @@ void apply_register_renaming(instruction_t *instr)
       // This is equivalent to there being no value there, which is OK for cycle-sim,
       // since we're not actually computing anything.
       instr->Q[i] = map_table[reg];
+    }
+  }
+
+  // Remap outputs.
+  for (int i = 0; i < 2; i++)
+  {
+    int reg = instr->r_out[i];
+    if (reg != DNA)
+    {
+      map_table[reg] = instr;
     }
   }
 }
