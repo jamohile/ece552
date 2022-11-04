@@ -88,13 +88,8 @@ static instruction_t *commonDataBus = NULL;
 static instruction_t *map_table[MD_TOTAL_REGS] = { 0 };
 
 // the index of the last instruction fetched
+// Since we start our indexing at 1, this means we haven't fetched anything yet.
 static int fetch_index = 0;
-
-// The current trace being fetched from,
-// and the current index of the instruction to fetch within that trace.
-// Note, the index here is based on the trace table *array*, not the instruction's index property.
-instruction_trace_t *current_trace = NULL;
-static int current_trace_table_index = 0;
 
 /* RESERVATION STATIONS */
 typedef struct
@@ -434,18 +429,6 @@ void dispatch_To_issue(int current_cycle)
   move_dispatch_to_issue_if_ready(current_cycle, fp_reserv_stations, RESERV_FP_SIZE);
 }
 
-// Move the current trace forward by one index.
-// This handles simultaneously advancing the array index, and the linked list.
-void advance_trace()
-{
-  current_trace_table_index += 1;
-  if (current_trace_table_index >= current_trace->size)
-  {
-    current_trace = current_trace->next;
-    current_trace_table_index = 0;
-  }
-}
-
 /*
  * Description:
  * 	Grabs an instruction from the instruction trace (if possible)
@@ -462,32 +445,17 @@ void fetch(instruction_trace_t *trace)
     return;
   }
 
-  // If there is nothing more to fetch, don't.
-  if (current_trace == NULL)
-  {
+  // We cannot fetch an instruction if they've all been fetched.
+  if (fetch_index == sim_num_insn) {
     return;
   }
 
-  // Now, we assume that the current index is a valid one: can be read.
-  // However, it may be a trap. If so, advance until we find a non-trap.
-  while (IS_TRAP(current_trace->table[fetch_index].op))
-  {
-    advance_trace();
-  }
+  do {
+    fetch_index++;
+  } while (IS_TRAP(get_instr(trace, fetch_index)->op));
 
-  // It's possible that after advancing, we have no more valid instructions to read.
-  if (current_trace == NULL)
-  {
-    return;
-  }
-
-  // Otherwise, we should have valid data.
-  instruction_t *instr = &current_trace->table[current_trace_table_index];
-  fetch_index = instr->index;
-  instr_queue[instr_queue_size] = instr;
+  instr_queue[instr_queue_size] = get_instr(trace, fetch_index);
   instr_queue_size++;
-
-  advance_trace();
 }
 
 // Remove the first instruction from the queue, and shift all others forward.
