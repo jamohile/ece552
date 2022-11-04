@@ -346,8 +346,8 @@ void execute_To_CDB(int current_cycle)
   }
 
   // Cleanup any stores, as these do not move to the CDB.
-  cleanup_completed_stores(current_cycle, int_reserv_stations, RESERV_INT_SIZE, int_func_units, FU_INT_SIZE);
-  cleanup_completed_stores(current_cycle, fp_reserv_stations, RESERV_FP_SIZE, fp_func_units, FU_FP_SIZE);
+  cleanup_completed_stores(current_cycle, int_reserv_stations, RESERV_INT_SIZE, int_func_units, FU_INT_SIZE, FU_INT_LATENCY);
+  cleanup_completed_stores(current_cycle, fp_reserv_stations, RESERV_FP_SIZE, fp_func_units, FU_FP_SIZE, FU_FP_LATENCY);
 }
 
 bool has_raw_dependences(instruction_t* instr) {
