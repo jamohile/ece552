@@ -1,0 +1,25 @@
+{
+  // Use IntelliSense to learn about possible attributes.
+  // Hover to view descriptions of existing attributes.
+  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "(gdb) Attach",
+      "type": "cppdbg",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/lab3/simplesim-3.0d-assig3",
+      "program": "${workspaceFolder}/lab3/simplesim-3.0d-assig3/sim-safe",
+      "MIMode": "gdb",
+      "setupCommands": [
+          {
+              "description": "Enable pretty-printing for gdb",
+              "text": "-enable-pretty-printing",
+              "ignoreFailures": true
+          }
+      ],
+      "args": ["-max:inst", "17000", "/cad2/ece552f/benchmarks/compress.eio"],
+    }
+
+  ]
+}
