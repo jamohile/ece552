@@ -246,7 +246,7 @@ functional_unit_t* get_cdb_candidate(int current_cycle, functional_unit_t* func_
     }
 
     // If the instruction is a store, it does not broadcast.
-    if (IS_STORE(func_units->station->instr->op)) {
+    if (IS_STORE(func_unit->station->instr->op)) {
       continue;
     }
 
