@@ -81,14 +81,6 @@
 static instruction_t *instr_queue[INSTR_QUEUE_SIZE] = { 0 };
 static int instr_queue_size = 0;
 
-// reservation stations (each reservation station entry contains a pointer to an instruction)
-static instruction_t *reservINT[RESERV_INT_SIZE] = { 0 };
-static instruction_t *reservFP[RESERV_FP_SIZE] = { 0 };
-
-// functional units
-static instruction_t *fuINT[FU_INT_SIZE] = { 0 };
-static instruction_t *fuFP[FU_FP_SIZE] = { 0 };
-
 // common data bus
 static instruction_t *commonDataBus = NULL;
 
@@ -137,52 +129,59 @@ functional_unit_t fp_func_units[FU_FP_SIZE] = { 0 };
  */
 static bool is_simulation_done(counter_t sim_insn)
 {
-  if (fetch_index > sim_insn)
-  {
-    return true;
-  }
-  int i;
-  for (i = 0; i < INSTR_QUEUE_SIZE; i++)
+
+  // Make sure all instructions have been read.
+
+  for (int i = 0; i < INSTR_QUEUE_SIZE; i++)
   {
     if (instr_queue[i] != NULL)
     {
       return false;
     }
   }
-  for (i = 0; i < RESERV_INT_SIZE; i++)
+
+  // Make sure all reservation stations have been emptied.
+
+  for (int i = 0; i < RESERV_INT_SIZE; i++)
   {
-    if (reservINT[i] != NULL)
+    if (int_reserv_stations[i].instr != NULL)
     {
       return false;
     }
   }
 
-  for (i = 0; i < RESERV_FP_SIZE; i++)
+  for (int i = 0; i < RESERV_FP_SIZE; i++)
   {
-    if (reservFP[i] != NULL)
-    {
-      return false;
-    }
-  }
-  for (i = 0; i < FU_INT_SIZE; i++)
-  {
-    if (fuINT[i] != NULL)
+    if (fp_reserv_stations[i].instr != NULL)
     {
       return false;
     }
   }
 
-  for (i = 0; i < FU_FP_SIZE; i++)
+  // Make sure all functional units have been emptied.
+
+  for (int i = 0; i < FU_INT_SIZE; i++)
   {
-    if (fuFP[i] != NULL)
+    if (int_func_units[i].station != NULL)
+    {
+      return false;
+    }
+  }
+
+  for (int i = 0; i < FU_FP_SIZE; i++)
+  {
+    if (fp_func_units[i].station != NULL)
     {
       return false;
     };
   }
 
-  /* ECE552: YOUR CODE GOES HERE */
+  // Make sure the CDB has been consumed.
+  if (commonDataBus != NULL) {
+    return false
+  }
 
-  return true; // ECE552: you can change this as needed; we've added this so the code provided to you compiles
+  return true;
 }
 
 void notify_reservation_stations(reservation_station_t* stations, int num_stations, instruction_t* completed_instr) {
@@ -230,6 +229,8 @@ void CDB_To_retire(int current_cycle)
 
   notify_reservation_stations(int_reserv_stations, RESERV_INT_SIZE, commonDataBus);
   notify_reservation_stations(fp_reserv_stations, RESERV_FP_SIZE, commonDataBus);
+
+  commonDataBus = NULL;
 }
 
 bool is_done_executing(instruction_t* instr, int latency, int current_cycle) {
