@@ -104,17 +104,6 @@ static int fetch_index = 0;
 instruction_trace_t *current_trace = NULL;
 static int current_trace_table_index = 0;
 
-/* FUNCTIONAL UNITS */
-typedef struct
-{
-  // The instruction being processed.
-  // If null, then the FU is available.
-  instruction_t *instr;
-} functional_unit_t;
-
-functional_unit_t int_func_units[FU_INT_SIZE] = { 0 };
-functional_unit_t fp_func_units[FU_FP_SIZE] = { 0 };
-
 /* RESERVATION STATIONS */
 typedef struct
 {
@@ -125,6 +114,17 @@ typedef struct
 
 reservation_station_t int_reserv_stations[RESERV_INT_SIZE] = { 0 };
 reservation_station_t fp_reserv_stations[RESERV_FP_SIZE] = { 0 };
+
+/* FUNCTIONAL UNITS */
+typedef struct
+{  
+  // The station who's instruction is currently being executed.
+  // Since we dealloc these together, it makes sense to store them together too.
+  reservation_station_t* station;
+} functional_unit_t;
+
+functional_unit_t int_func_units[FU_INT_SIZE] = { 0 };
+functional_unit_t fp_func_units[FU_FP_SIZE] = { 0 };
 
 /*
  * Description:
@@ -244,10 +244,6 @@ void CDB_To_retire(int current_cycle)
   /* ECE552: YOUR CODE GOES HERE */
 }
 
-bool fu_is_empty(functional_unit_t* fu) {
-  return fu->instr == NULL;
-}
-
 bool is_done_executing(instruction_t* instr, int latency, int current_cycle) {
   return current_cycle >= (instr->tom_execute_cycle + latency);
 }
@@ -261,18 +257,18 @@ functional_unit_t* get_cdb_candidate(int current_cycle, functional_unit_t* func_
     functional_unit_t* func_unit = &func_units[i];
 
     // Empty or ongoing FUs cannot broadcast.
-    if (fu_is_empty(func_unit) || !is_done_executing(func_unit->instr, func_unit_latency, current_cycle)) {
+    if (func_unit->station == NULL || !is_done_executing(func_unit->station->instr, func_unit_latency, current_cycle)) {
       continue;
     }
 
     // If the instruction is a store, it does not broadcast.
-    if (IS_STORE(func_units->instr->op)) {
+    if (IS_STORE(func_units->station->instr->op)) {
       continue;
     }
 
     // The instruction is able to broadcast!
     // Select it only if it is the youngest.
-    if (cdb_candidate == NULL || func_unit->instr->index < cdb_candidate->instr->index) {
+    if (cdb_candidate == NULL || func_unit->station->instr->index < cdb_candidate->station->instr->index) {
       cdb_candidate = func_unit;
     }
   }
@@ -280,31 +276,22 @@ functional_unit_t* get_cdb_candidate(int current_cycle, functional_unit_t* func_
   return cdb_candidate;
 }
 
-void cleanup_completed_stores(int current_cycle, reservation_station_t* stations, int num_stations, functional_unit_t* func_units, int num_func_units, int func_unit_latency) {
+void cleanup_completed_stores(int current_cycle, functional_unit_t* func_units, int num_func_units, int func_unit_latency) {
   for (int i = 0; i < num_func_units; i++) {
     functional_unit_t* func_unit = &func_units[i];
 
     // Stores are not complete if the FU is empty, or they are still running.
-    if (fu_is_empty(func_unit) || !is_done_executing(func_unit->instr, func_unit_latency, current_cycle)) {
+    if (func_unit->station == NULL || !is_done_executing(func_unit->station->instr, func_unit_latency, current_cycle)) {
       continue;
     }
 
-    if (!IS_STORE(func_unit->instr->op)) {
+    if (!IS_STORE(func_unit->station->instr->op)) {
       continue;
     }
 
-    // The instruction is a completed store.
     // Deallocate the reservation station and functional unit.
-    
-    // First, we have to find the associated station.
-    for (int j = 0; j < num_stations; j++) {
-      if (stations[j].instr == func_unit->instr) {
-        stations[j].instr = NULL;
-        break;
-      }
-    }
-
-    func_unit->instr = NULL;
+    func_unit->station->instr = NULL;
+    func_unit->station = NULL;
   }
 }
 
@@ -328,26 +315,29 @@ void execute_To_CDB(int current_cycle)
   functional_unit_t* int_cdb_candidate = get_cdb_candidate(current_cycle, int_func_units, FU_INT_SIZE, FU_INT_LATENCY);
   functional_unit_t* fp_cdb_candidate = get_cdb_candidate(current_cycle, fp_func_units, FU_FP_SIZE, FU_FP_LATENCY);
 
-  // The younger candidate gets priority.
-  functional_unit_t* cdb_candidate = int_cdb_candidate;
-
-  if (cdb_candidate == NULL) {
-    cdb_candidate = fp_cdb_candidate;
-  } else if (fp_cdb_candidate != NULL && fp_cdb_candidate->instr->index < cdb_candidate->instr->index) {
-    cdb_candidate = fp_cdb_candidate;
+  // If only one execution path has a broadcastable instruction, it wins.
+  // Otherwise, the younger instruction moves forward.
+  functional_unit_t* cdb_candidate = NULL;
+  if (int_cdb_candidate == NULL || fp_cdb_candidate == NULL) {
+    cdb_candidate = int_cdb_candidate == NULL ? fp_cdb_candidate : int_cdb_candidate;
+  } else {
+    bool int_younger = int_cdb_candidate->station->instr->index < fp_cdb_candidate->station->instr->index;
+    cdb_candidate = int_younger ? int_cdb_candidate : fp_cdb_candidate;
   }
 
   // Now, if we found a broadcastable instruction, broadcast it.
-  // Also, deallocate its functional unit.
+  // Also, deallocate its functional unit and reservation station.
   if (cdb_candidate != NULL) {
-    commonDataBus = cdb_candidate->instr;
-    cdb_candidate->instr = NULL;
-    cdb_candidate->instr->tom_cdb_cycle = current_cycle;
+    commonDataBus = cdb_candidate->station->instr;
+    cdb_candidate->station->instr->tom_cdb_cycle = current_cycle;
+
+    cdb_candidate->station->instr = NULL;
+    cdb_candidate->station = NULL;
   }
 
   // Cleanup any stores, as these do not move to the CDB.
-  cleanup_completed_stores(current_cycle, int_reserv_stations, RESERV_INT_SIZE, int_func_units, FU_INT_SIZE, FU_INT_LATENCY);
-  cleanup_completed_stores(current_cycle, fp_reserv_stations, RESERV_FP_SIZE, fp_func_units, FU_FP_SIZE, FU_FP_LATENCY);
+  cleanup_completed_stores(current_cycle, int_func_units, FU_INT_SIZE, FU_INT_LATENCY);
+  cleanup_completed_stores(current_cycle, fp_func_units, FU_FP_SIZE, FU_FP_LATENCY);
 }
 
 bool has_raw_dependences(instruction_t* instr) {
@@ -364,7 +354,7 @@ functional_unit_t* get_free_func_unit(functional_unit_t *func_units, int num_fun
 {
   for (int i = 0; i < num_func_units; i++)
   {
-    if (func_units[i].instr == NULL)
+    if (func_units[i].station == NULL)
     {
       return &func_units[i];
     }
@@ -376,20 +366,21 @@ functional_unit_t* get_free_func_unit(functional_unit_t *func_units, int num_fun
 // That is, assign free instructions to free functional units, favouring older instructions (based on program count)
 void move_issue_to_execute_if_ready(int current_cycle, reservation_station_t* stations, int num_stations, functional_unit_t* func_units, int num_func_units) {
   while (get_free_func_unit(func_units, num_func_units) != NULL) {
-    instruction_t* execution_candidate = NULL;
+    reservation_station_t* execution_candidate = NULL;
+
     for (int i = 0; i > num_stations; i++) {
-      instruction_t* instr = stations[i].instr;
+      reservation_station_t* station = &stations[i];
       
-      // We can't execute an instruction that is still waiting for data.
-      if (has_raw_dependences(instr)) {
+      // We can't execute if the station is empty or still waiting for data.
+      if (station->instr == NULL || has_raw_dependences(station->instr)) {
         continue;
       }
 
       // We can only execute instructions that have not yet executed (duh) and have been in issue for >= 1 cycle.
-      if (instr->tom_issue_cycle < current_cycle && instr->tom_execute_cycle == -1) {
+      if (station->instr->tom_issue_cycle < current_cycle && station->instr->tom_execute_cycle == -1) {
         // Favour running older instructions first. (old = lower index)
-        if (execution_candidate == NULL || instr->index < execution_candidate->index) {
-          execution_candidate = instr;
+        if (execution_candidate == NULL || station->instr->index < execution_candidate->instr->index) {
+          execution_candidate = station;
         }
       }
     }
@@ -397,8 +388,8 @@ void move_issue_to_execute_if_ready(int current_cycle, reservation_station_t* st
     // Ultimately, we can schedule the execution candidate for execution.
     // However, if there was no candidate, no point continuing to search, even if FUs still exist.
     if (execution_candidate != NULL) {
-      execution_candidate->tom_execute_cycle = current_cycle;
-      get_free_func_unit(func_units, num_func_units)->instr = execution_candidate;
+      get_free_func_unit(func_units, num_func_units)->station = execution_candidate;
+      execution_candidate->instr->tom_execute_cycle = current_cycle;
     } else {
       break;
     }
