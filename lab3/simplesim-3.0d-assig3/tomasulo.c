@@ -405,6 +405,25 @@ void issue_To_execute(int current_cycle)
   /* ECE552: YOUR CODE GOES HERE */
 }
 
+// Given a bank of reservation stations, move each entry from dispatch to issue, if it is ready.
+// Any dispatched instruction immediately moves to issue after one cycle.
+// In issue, it will now wait for all RAW dependences to be resolved.
+void move_dispatch_to_issue_if_ready(reservation_station_t* stations, int num_stations) {
+  for (int i = 0; i < num_stations; i++) {
+    instruction_t* instr = stations[i].instr;
+    
+    // Don't do anything if the reservation station is empty.
+    if (instr!= NULL) {
+      continue;
+    }
+
+    // Move if been in dispatch long enough, and not yet in issue.
+    if (instr->tom_dispatch_cycle < current_cycle && instr->tom_issue_cycle == -1) {
+      instr->tom_issue_cycle = current_cycle;
+    }
+  }
+}
+
 /*
  * Description:
  * 	Moves instruction(s) from the dispatch stage to the issue stage
@@ -415,8 +434,8 @@ void issue_To_execute(int current_cycle)
  */
 void dispatch_To_issue(int current_cycle)
 {
-
-  /* ECE552: YOUR CODE GOES HERE */
+  move_dispatch_to_issue_if_ready(int_reserv_stations, RESERV_INT_SIZE);
+  move_dispatch_to_issue_if_ready(fp_reserv_stations, RESERV_FP_SIZE);
 }
 
 // Move the current trace forward by one index.
@@ -574,6 +593,8 @@ void fetch_To_dispatch(instruction_trace_t *trace, int current_cycle)
   // Actually handle the dispatch, if possible.
   if (assigned_station != NULL)
   {
+    // TODO: check for off by one.
+    instr->tom_dispatch_cycle = current_cycle;
     assigned_station->instr = instr;
     apply_register_renaming(instr);
     remove_first_instr();
