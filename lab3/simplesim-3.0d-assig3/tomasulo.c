@@ -196,52 +196,50 @@ static bool is_simulation_done(counter_t sim_insn)
 // this function releases Q and release map table entry
 void CDB_To_retire(int current_cycle)
 {
+  if (commonDataBus == NULL) {
+    return;
+  }
+
   // clear maptable
-  if (commonDataBus != NULL)
+
+  for (int i = 0; i <= 1; i++)
   {
-    for (int i = 0; i <= 1; i++)
+    int maptable_index = commonDataBus->r_out[i];
+    if (map_table[maptable_index] == commonDataBus)
     {
-      int maptable_index = commonDataBus->r_out[i];
-      if (map_table[maptable_index] == commonDataBus)
-      {
-        map_table[maptable_index] = NULL;
-      }
+      map_table[maptable_index] = NULL;
     }
   }
-  if (commonDataBus != NULL)
+
+
+  for (int i = 0; i < RESERV_INT_SIZE; i++)
   {
-    for (int i = 0; i < RESERV_INT_SIZE; i++)
+    for (int j = 0; j < 3; j++)
     {
-      for (int j = 0; j < 3; j++)
+      if (reservINT[RESERV_INT_SIZE] != NULL)
       {
-        if (reservINT[RESERV_INT_SIZE] != NULL)
+        if (reservINT[RESERV_INT_SIZE]->Q[j] == commonDataBus)
         {
-          if (reservINT[RESERV_INT_SIZE]->Q[j] == commonDataBus)
-          {
-            reservINT[RESERV_INT_SIZE]->Q[j] = NULL;
-          }
-        }
-      }
-    }
-  }
-  if (commonDataBus != NULL)
-  {
-    for (int i = 0; i < RESERV_INT_SIZE; i++)
-    {
-      for (int j = 0; j < 3; j++)
-      {
-        if (reservFP[RESERV_INT_SIZE] != NULL)
-        {
-          if (reservFP[RESERV_INT_SIZE]->Q[j] == commonDataBus)
-          {
-            reservFP[RESERV_INT_SIZE]->Q[j] = NULL;
-          }
+          reservINT[RESERV_INT_SIZE]->Q[j] = NULL;
         }
       }
     }
   }
 
-  /* ECE552: YOUR CODE GOES HERE */
+
+  for (int i = 0; i < RESERV_INT_SIZE; i++)
+  {
+    for (int j = 0; j < 3; j++)
+    {
+      if (reservFP[RESERV_INT_SIZE] != NULL)
+      {
+        if (reservFP[RESERV_INT_SIZE]->Q[j] == commonDataBus)
+        {
+          reservFP[RESERV_INT_SIZE]->Q[j] = NULL;
+        }
+      }
+    }
+  }
 }
 
 bool is_done_executing(instruction_t* instr, int latency, int current_cycle) {
