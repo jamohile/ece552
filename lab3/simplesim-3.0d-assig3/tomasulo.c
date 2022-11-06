@@ -30,8 +30,10 @@
 #define FU_INT_SIZE 3
 #define FU_FP_SIZE 1
 
+/* ECE552 Assignment 3 - BEGIN CODE */
 #define RESERV_TOTAL_SIZE (RESERV_INT_SIZE + RESERV_FP_SIZE)
 #define FU_TOTAL_SIZE (FU_INT_SIZE + FU_FP_SIZE)
+/* ECE552 Assignment 3 - END CODE */
 
 #define FU_INT_LATENCY 5
 #define FU_FP_LATENCY 7
@@ -80,6 +82,7 @@
 
 /* VARIABLES */
 
+/* ECE552 Assignment 3 - BEGIN CODE */
 // instruction queue for tomasulo
 static instruction_t *instr_queue[INSTR_QUEUE_SIZE] = { 0 };
 static int instr_queue_size = 0;
@@ -119,6 +122,8 @@ functional_unit_t int_func_units[FU_INT_SIZE] = {[0 ...FU_INT_SIZE-1] = {0, .lat
 functional_unit_t fp_func_units[FU_FP_SIZE] = {[0 ... FU_FP_SIZE-1] = {0, .latency=FU_FP_LATENCY}};
 functional_unit_t* all_func_units[FU_TOTAL_SIZE];
 
+/* ECE552 Assignment 3 - END CODE */
+
 /*
  * Description:
  * 	Checks if simulation is done by finishing the very last instruction
@@ -130,6 +135,7 @@ functional_unit_t* all_func_units[FU_TOTAL_SIZE];
  */
 static bool is_simulation_done(counter_t sim_insn)
 {
+  /* ECE552 Assignment 3 - BEGIN CODE */
 
   // Make sure all instructions have been read.
 
@@ -183,8 +189,11 @@ static bool is_simulation_done(counter_t sim_insn)
   }
 
   return true;
+
+  /* ECE552 Assignment 3 - END CODE */
 }
 
+/* ECE552 Assignment 3 - BEGIN CODE */
 void notify_reservation_stations(reservation_station_t* stations, int num_stations, instruction_t* completed_instr) {
   // Find all stations who depend on this result, and 'notify them' it is complete.
   for (int i = 0; i < num_stations; i++) {
@@ -202,6 +211,7 @@ void notify_reservation_stations(reservation_station_t* stations, int num_statio
     }
   }
 }
+/* ECE552 Assignment 3 - END CODE */
 
 /*
  * Description:
@@ -214,6 +224,7 @@ void notify_reservation_stations(reservation_station_t* stations, int num_statio
 // this function releases Q and release map table entry
 void CDB_To_retire(int current_cycle)
 {
+  /* ECE552 Assignment 3 - BEGIN CODE */
   if (commonDataBus == NULL) {
     return;
   }
@@ -232,7 +243,10 @@ void CDB_To_retire(int current_cycle)
   notify_reservation_stations(fp_reserv_stations, RESERV_FP_SIZE, commonDataBus);
 
   commonDataBus = NULL;
+  /* ECE552 Assignment 3 - END CODE */
 }
+
+/* ECE552 Assignment 3 - BEGIN CODE */
 
 // Clear all computation resources (RS, FU) for an instruction.
 void deallocate_instruction(functional_unit_t* unit) {
@@ -257,6 +271,8 @@ functional_unit_t* get_older(functional_unit_t* a, functional_unit_t* b) {
   return b;
 }
 
+/* ECE552 Assignment 3 - END CODE */
+
 /*
  * Description:
  * 	Moves an instruction from the execution stage to common data bus (if possible)
@@ -268,6 +284,8 @@ functional_unit_t* get_older(functional_unit_t* a, functional_unit_t* b) {
 // this function only cares about cdb 
 void execute_To_CDB(int current_cycle)
 {
+  /* ECE552 Assignment 3 - BEGIN CODE */
+
   // Only a single value can be broadcasted at a time.
   // So, we must filter through all candidates for it before deciding.
   functional_unit_t* broadcast_candidate = NULL;
@@ -296,8 +314,11 @@ void execute_To_CDB(int current_cycle)
     broadcast_candidate->station->instr->tom_cdb_cycle = current_cycle;
     deallocate_instruction(broadcast_candidate);
   }
+
+  /* ECE552 Assignment 3 - END CODE */
 }
 
+/* ECE552 Assignment 3 - BEGIN CODE */
 bool has_raw_dependences(instruction_t* instr) {
   for (int q = 0; q < 3; q++) {
     if (instr->Q[q] != NULL) {
@@ -354,6 +375,8 @@ void move_issue_to_execute_if_ready(int current_cycle, reservation_station_t* st
   }
 }
 
+/* ECE552 Assignment 3 - END CODE */
+
 /*
  * Description:
  * 	Moves instruction(s) from the issue to the execute stage (if possible). We prioritize old instructions
@@ -366,11 +389,17 @@ void move_issue_to_execute_if_ready(int current_cycle, reservation_station_t* st
  */
 void issue_To_execute(int current_cycle)
 {
+  /* ECE552 Assignment 3 - BEGIN CODE */
+
   // In this stage, the INT/FP pipelines are completely independent.
   // So, it's easier to just handle them that way.
   move_issue_to_execute_if_ready(current_cycle, int_reserv_stations, RESERV_INT_SIZE, int_func_units, FU_INT_SIZE);
   move_issue_to_execute_if_ready(current_cycle, fp_reserv_stations, RESERV_FP_SIZE, fp_func_units, FU_FP_SIZE);
+
+  /* ECE552 Assignment 3 - END CODE */
 }
+
+/* ECE552 Assignment 3 - BEGIN CODE */
 
 // Apply register renaming to an instruction.
 // This includes both updating the map-table, and updating the instruction based on this table.
@@ -428,6 +457,8 @@ reservation_station_t *get_free_reserv(reservation_station_t *reserv_station_arr
   return NULL;
 }
 
+/* ECE552 Assignment 3 - END CODE */
+
 /*
  * Description:
  * 	Moves instruction(s) from the dispatch stage to the issue stage
@@ -438,6 +469,8 @@ reservation_station_t *get_free_reserv(reservation_station_t *reserv_station_arr
  */
 void dispatch_To_issue(int current_cycle)
 {
+  /* ECE552 Assignment 3 - BEGIN CODE */
+
   // Only the head of the IFQ is allowed to dispatch.
   if (instr_queue_size == 0) {
     return;
@@ -466,6 +499,8 @@ void dispatch_To_issue(int current_cycle)
     instr_queue_pop();
     apply_register_renaming(assigned_station->instr);
   }
+
+  /* ECE552 Assignment 3 - END CODE */
 }
 
 /*
@@ -478,6 +513,8 @@ void dispatch_To_issue(int current_cycle)
  */
 void fetch(instruction_trace_t *trace)
 {
+  /* ECE552 Assignment 3 - BEGIN CODE */
+
   // We cannot fetch a new instruction if there is no room.
   if (instr_queue_size >= INSTR_QUEUE_SIZE)
   {
@@ -496,6 +533,8 @@ void fetch(instruction_trace_t *trace)
 
   instr_queue[instr_queue_size] = get_instr(trace, fetch_index);
   instr_queue_size++;
+
+  /* ECE552 Assignment 3 - END CODE */
 }
 
 /*
@@ -510,6 +549,8 @@ void fetch(instruction_trace_t *trace)
 void fetch_To_dispatch(instruction_trace_t *trace, int current_cycle)
 {
 
+  /* ECE552 Assignment 3 - BEGIN CODE */
+
   fetch(trace);
 
   // Regardless of if an inst is ready to send to an RS,
@@ -519,6 +560,8 @@ void fetch_To_dispatch(instruction_trace_t *trace, int current_cycle)
       instr_queue[i]->tom_dispatch_cycle = current_cycle;
     }
   }
+
+  /* ECE552 Assignment 3 - END CODE */
 }
 
 /*
@@ -533,6 +576,10 @@ void fetch_To_dispatch(instruction_trace_t *trace, int current_cycle)
  */
 counter_t runTomasulo(instruction_trace_t *trace)
 {
+  /* ECE552 Assignment 3 - BEGIN CODE */
+
+  // It's useful to access the FUs together.
+  // This would be easy in high level langs, but in C is a bit annoying.
   for (int i = 0; i < FU_INT_SIZE; i++) {
     all_func_units[i] = &int_func_units[i];
   }
@@ -561,4 +608,6 @@ counter_t runTomasulo(instruction_trace_t *trace)
   }
 
   return cycle;
+
+  /* ECE552 Assignment 3 - END CODE */
 }
