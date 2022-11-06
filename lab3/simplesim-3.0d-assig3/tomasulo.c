@@ -579,6 +579,12 @@ counter_t runTomasulo(instruction_trace_t *trace)
     // Broadcast any instrucitons that have completed execution.
     // This will also free the resources those instructions had used.
     execute_To_CDB(cycle);
+
+    // Execute any instructions that have met all dependencies.
+    // This may use an FU that was just freed by a broadcast/retire,
+    // And data that was just freed during a retire.
+    issue_To_execute(cycle);
+    
     CDB_To_retire(cycle);
 
     // Advance any issues that have spent at least one cycle in dispatch, to issue.
@@ -586,11 +592,6 @@ counter_t runTomasulo(instruction_trace_t *trace)
 
     // Fetch a new instruction, and move to dispatch if possible.
     fetch_To_dispatch(trace, cycle);
-
-    // Execute any instructions that have met all dependencies.
-    // This may use an FU that was just freed by a broadcast/retire,
-    // And data that was just freed during a retire.
-    issue_To_execute(cycle);
 
     cycle++;
 
