@@ -31,7 +31,7 @@
 #define FU_FP_SIZE 1
 
 #define RESERV_TOTAL_SIZE (RESERV_INT_SIZE + RESERV_FP_SIZE)
-#define FU_TOTAL_SIZE (FU_INT_SIZE + RESEFU_FP_SIZERV_FP_SIZE)
+#define FU_TOTAL_SIZE (FU_INT_SIZE + FU_FP_SIZE)
 
 #define FU_INT_LATENCY 5
 #define FU_FP_LATENCY 7
@@ -104,7 +104,6 @@ typedef struct
 
 reservation_station_t int_reserv_stations[RESERV_INT_SIZE] = { 0 };
 reservation_station_t fp_reserv_stations[RESERV_FP_SIZE] = { 0 };
-reservation_station_t* all_reserv_stations[RESERV_INT_SIZE + RESERV_FP_SIZE];
 
 /* FUNCTIONAL UNITS */
 typedef struct
@@ -118,6 +117,7 @@ typedef struct
 // Create two banks of functional units, initializing latencies accordingly.
 functional_unit_t int_func_units[FU_INT_SIZE] = {[0 ...FU_INT_SIZE-1] = {0, .latency=FU_INT_LATENCY}};
 functional_unit_t fp_func_units[FU_FP_SIZE] = {[0 ... FU_FP_SIZE-1] = {0, .latency=FU_FP_LATENCY}};
+functional_unit_t* all_func_units[FU_TOTAL_SIZE];
 
 /*
  * Description:
@@ -566,31 +566,25 @@ void fetch_To_dispatch(instruction_trace_t *trace, int current_cycle)
  */
 counter_t runTomasulo(instruction_trace_t *trace)
 {
-  for (int i = 0; i < RESERV_INT_SIZE; i++) {
-    all_reserv_stations[i] = &int_reserv_stations[i];
+  for (int i = 0; i < FU_INT_SIZE; i++) {
+    all_func_units[i] = &int_func_units[i];
   }
-  for (int i = 0; i < RESERV_FP_SIZE; i++) {
-    all_reserv_stations[i + RESERV_INT_SIZE] = &fp_reserv_stations[i];
+  for (int i = 0; i < FU_FP_SIZE; i++) {
+    all_func_units[i + FU_INT_SIZE] = &fp_func_units[i];
   }
 
   int cycle = 1;
   while (true)
   {
-    // Broadcast any instrucitons that have completed execution.
-    // This will also free the resources those instructions had used.
     execute_To_CDB(cycle);
-
-    // Execute any instructions that have met all dependencies.
-    // This may use an FU that was just freed by a broadcast/retire,
-    // And data that was just freed during a retire.
+    // When executing, we are allowed to immediately use an FU freed above.
+    // However, we must wait a cycle before using values broadcasted below.
     issue_To_execute(cycle);
-    
     CDB_To_retire(cycle);
 
-    // Advance any issues that have spent at least one cycle in dispatch, to issue.
+    // Dispatch must precede fetch, to make sure we don't immediately dispatch an instruction.
+    // When starting issue, we can immediately use reservation stations freed during broadcast.
     dispatch_To_issue(cycle);
-
-    // Fetch a new instruction, and move to dispatch if possible.
     fetch_To_dispatch(trace, cycle);
 
     cycle++;
