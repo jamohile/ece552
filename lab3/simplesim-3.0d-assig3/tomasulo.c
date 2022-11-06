@@ -427,8 +427,8 @@ void move_dispatch_to_issue_if_ready(int current_cycle, reservation_station_t* s
  */
 void dispatch_To_issue(int current_cycle)
 {
-  move_dispatch_to_issue_if_ready(current_cycle, int_reserv_stations, RESERV_INT_SIZE);
-  move_dispatch_to_issue_if_ready(current_cycle, fp_reserv_stations, RESERV_FP_SIZE);
+  move_dispatch_to_issue_if_ready(current_cycle + 1, int_reserv_stations, RESERV_INT_SIZE);
+  move_dispatch_to_issue_if_ready(current_cycle + 1, fp_reserv_stations, RESERV_FP_SIZE);
 }
 
 /*
@@ -530,6 +530,14 @@ void fetch_To_dispatch(instruction_trace_t *trace, int current_cycle)
 
   fetch(trace);
 
+  // Regardless of if an inst is ready to send to an RS,
+  // it begins dispatch as soon as it hits the IFQ.
+  for (int i = 0; i < INSTR_QUEUE_SIZE; i++) {
+    if (instr_queue[i] != NULL && instr_queue[i]->tom_dispatch_cycle == 0) {
+      instr_queue[i]->tom_dispatch_cycle = current_cycle;
+    }
+  }
+
   // We may be able to dispatch the head of the IFQ, if its RS is free.
   instruction_t *instr = instr_queue[0];
   if (instr == NULL)
@@ -562,7 +570,6 @@ void fetch_To_dispatch(instruction_trace_t *trace, int current_cycle)
   if (assigned_station != NULL)
   {
     // TODO: check for off by one.
-    instr->tom_dispatch_cycle = current_cycle;
     assigned_station->instr = instr;
     apply_register_renaming(instr);
     remove_first_instr();
