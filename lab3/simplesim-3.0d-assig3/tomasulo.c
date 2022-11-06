@@ -250,7 +250,7 @@ functional_unit_t* get_older(functional_unit_t* a, functional_unit_t* b) {
     return a;
   }
 
-  if (a->station->instr->index > b->station->instr->index) {
+  if (a->station->instr->index < b->station->instr->index) {
     return a;
   }
 
@@ -293,6 +293,7 @@ void execute_To_CDB(int current_cycle)
 
   if (broadcast_candidate) {
     commonDataBus = broadcast_candidate->station->instr;
+    broadcast_candidate->station->instr->tom_cdb_cycle = current_cycle;
     deallocate_instruction(broadcast_candidate);
   }
 }
