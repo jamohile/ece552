@@ -30,6 +30,9 @@
 #define FU_INT_SIZE 3
 #define FU_FP_SIZE 1
 
+#define RESERV_TOTAL_SIZE (RESERV_INT_SIZE + RESERV_FP_SIZE)
+#define FU_TOTAL_SIZE (FU_INT_SIZE + RESEFU_FP_SIZERV_FP_SIZE)
+
 #define FU_INT_LATENCY 5
 #define FU_FP_LATENCY 7
 
@@ -101,6 +104,7 @@ typedef struct
 
 reservation_station_t int_reserv_stations[RESERV_INT_SIZE] = { 0 };
 reservation_station_t fp_reserv_stations[RESERV_FP_SIZE] = { 0 };
+reservation_station_t* all_reserv_stations[RESERV_INT_SIZE + RESERV_FP_SIZE];
 
 /* FUNCTIONAL UNITS */
 typedef struct
@@ -398,23 +402,60 @@ void issue_To_execute(int current_cycle)
   move_issue_to_execute_if_ready(current_cycle, fp_reserv_stations, RESERV_FP_SIZE, fp_func_units, FU_FP_SIZE);
 }
 
-// Given a bank of reservation stations, move each entry from dispatch to issue, if it is ready.
-// Any dispatched instruction immediately moves to issue after one cycle.
-// In issue, it will now wait for all RAW dependences to be resolved.
-void move_dispatch_to_issue_if_ready(int current_cycle, reservation_station_t* stations, int num_stations) {
-  for (int i = 0; i < num_stations; i++) {
-    instruction_t* instr = stations[i].instr;
-    
-    // Don't do anything if the reservation station is empty.
-    if (instr == NULL) {
-      continue;
-    }
-
-    // Move if been in dispatch long enough, and not yet in issue.
-    if (instr->tom_dispatch_cycle > 0 && instr->tom_dispatch_cycle < current_cycle && instr->tom_issue_cycle == 0) {
-      instr->tom_issue_cycle = current_cycle;
+// Apply register renaming to an instruction.
+// This includes both updating the map-table, and updating the instruction based on this table.
+void apply_register_renaming(instruction_t *instr)
+{
+  // Map in inputs.
+  // It's important that we do this before the outputs,
+  // otherwise we may end up with circular dependencies.
+  for (int i = 0; i < 3; i++)
+  {
+    int reg = instr->r_in[i];
+    if (reg != DNA)
+    {
+      // Note, if the value is already ready, map_table entry will be null.
+      // This is equivalent to there being no value there, which is OK for cycle-sim,
+      // since we're not actually computing anything.
+      instr->Q[i] = map_table[reg];
     }
   }
+
+  // Remap outputs.
+  for (int i = 0; i < 2; i++)
+  {
+    int reg = instr->r_out[i];
+    if (reg != DNA)
+    {
+      map_table[reg] = instr;
+    }
+  }
+}
+
+// Remove the first instruction from the queue, and shift all others forward.
+void remove_first_instr()
+{
+  for (int i = 0; i < INSTR_QUEUE_SIZE - 1; i++)
+  {
+    instr_queue[i] = instr_queue[i + 1];
+  }
+
+  // The last element will become null, since nothing to fill it.
+  instr_queue[INSTR_QUEUE_SIZE - 1] = NULL;
+  instr_queue_size--;
+}
+
+// Returns the first free station in an array of stations, if there is one.
+reservation_station_t *get_free_reserv(reservation_station_t *reserv_station_array, int num_stations)
+{
+  for (int i = 0; i < num_stations; i++)
+  {
+    if (reserv_station_array[i].instr == NULL)
+    {
+      return &reserv_station_array[i];
+    }
+  }
+  return NULL;
 }
 
 /*
@@ -427,8 +468,24 @@ void move_dispatch_to_issue_if_ready(int current_cycle, reservation_station_t* s
  */
 void dispatch_To_issue(int current_cycle)
 {
-  move_dispatch_to_issue_if_ready(current_cycle + 1, int_reserv_stations, RESERV_INT_SIZE);
-  move_dispatch_to_issue_if_ready(current_cycle + 1, fp_reserv_stations, RESERV_FP_SIZE);
+  // Only the head of the IFQ is allowed to dispatch.
+  if (instr_queue_size == 0) {
+    return;
+  }
+
+  reservation_station_t* assigned_station = NULL;
+  if (USES_INT_FU(instr_queue[0]->op)) {
+    assigned_station = get_free_reserv(int_reserv_stations, RESERV_INT_SIZE);
+  } else {
+    assigned_station = get_free_reserv(fp_reserv_stations, RESERV_FP_SIZE);
+  }
+
+  if (assigned_station) {
+    assigned_station->instr = instr_queue[0];
+    assigned_station->instr->tom_issue_cycle = current_cycle;
+    remove_first_instr();
+    apply_register_renaming(assigned_station->instr);
+  }
 }
 
 /*
@@ -458,62 +515,6 @@ void fetch(instruction_trace_t *trace)
 
   instr_queue[instr_queue_size] = get_instr(trace, fetch_index);
   instr_queue_size++;
-}
-
-// Remove the first instruction from the queue, and shift all others forward.
-void remove_first_instr()
-{
-  for (int i = 0; i < INSTR_QUEUE_SIZE - 1; i++)
-  {
-    instr_queue[i] = instr_queue[i + 1];
-  }
-
-  // The last element will become null, since nothing to fill it.
-  instr_queue[INSTR_QUEUE_SIZE - 1] = NULL;
-  instr_queue_size--;
-}
-
-// Returns the first free station in an array of stations, if there is one.
-reservation_station_t *get_free_reserv(reservation_station_t *reserv_station_array, int num_stations)
-{
-  for (int i = 0; i < num_stations; i++)
-  {
-    if (reserv_station_array[i].instr == NULL)
-    {
-      return &reserv_station_array[i];
-    }
-  }
-  return NULL;
-}
-
-// Apply register renaming to an instruction.
-// This includes both updating the map-table, and updating the instruction based on this table.
-void apply_register_renaming(instruction_t *instr)
-{
-  // Map in inputs.
-  // It's important that we do this before the outputs,
-  // otherwise we may end up with circular dependencies.
-  for (int i = 0; i < 3; i++)
-  {
-    int reg = instr->r_in[i];
-    if (reg != DNA)
-    {
-      // Note, if the value is already ready, map_table entry will be null.
-      // This is equivalent to there being no value there, which is OK for cycle-sim,
-      // since we're not actually computing anything.
-      instr->Q[i] = map_table[reg];
-    }
-  }
-
-  // Remap outputs.
-  for (int i = 0; i < 2; i++)
-  {
-    int reg = instr->r_out[i];
-    if (reg != DNA)
-    {
-      map_table[reg] = instr;
-    }
-  }
 }
 
 /*
@@ -551,29 +552,6 @@ void fetch_To_dispatch(instruction_trace_t *trace, int current_cycle)
     remove_first_instr();
     return;
   }
-
-  // Find a station that can accept our dispatch.
-  // TODO: this needs to be checked.
-  //       the spec says to dispatch if station will be free *next* cycle, not 100% sure this accounts for that.
-  reservation_station_t *assigned_station = NULL;
-
-  if (USES_FP_FU(instr->op))
-  {
-    assigned_station = get_free_reserv(fp_reserv_stations, RESERV_FP_SIZE);
-  }
-  else if (USES_INT_FU(instr->op))
-  {
-    assigned_station = get_free_reserv(int_reserv_stations, RESERV_INT_SIZE);
-  }
-
-  // Actually handle the dispatch, if possible.
-  if (assigned_station != NULL)
-  {
-    // TODO: check for off by one.
-    assigned_station->instr = instr;
-    apply_register_renaming(instr);
-    remove_first_instr();
-  }
 }
 
 /*
@@ -588,6 +566,13 @@ void fetch_To_dispatch(instruction_trace_t *trace, int current_cycle)
  */
 counter_t runTomasulo(instruction_trace_t *trace)
 {
+  for (int i = 0; i < RESERV_INT_SIZE; i++) {
+    all_reserv_stations[i] = &int_reserv_stations[i];
+  }
+  for (int i = 0; i < RESERV_FP_SIZE; i++) {
+    all_reserv_stations[i + RESERV_INT_SIZE] = &fp_reserv_stations[i];
+  }
+
   int cycle = 1;
   while (true)
   {
@@ -596,12 +581,11 @@ counter_t runTomasulo(instruction_trace_t *trace)
     execute_To_CDB(cycle);
     CDB_To_retire(cycle);
 
-    // Fetch a new instruction, and dispatch if possible.
-    // This may use a RS that was just free above.
-    fetch_To_dispatch(trace, cycle);
-
     // Advance any issues that have spent at least one cycle in dispatch, to issue.
     dispatch_To_issue(cycle);
+
+    // Fetch a new instruction, and move to dispatch if possible.
+    fetch_To_dispatch(trace, cycle);
 
     // Execute any instructions that have met all dependencies.
     // This may use an FU that was just freed by a broadcast/retire,
