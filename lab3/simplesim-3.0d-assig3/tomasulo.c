@@ -234,6 +234,28 @@ void CDB_To_retire(int current_cycle)
   commonDataBus = NULL;
 }
 
+// Clear all computation resources (RS, FU) for an instruction.
+void deallocate_instruction(functional_unit_t* unit) {
+  unit->station->instr = NULL;
+  unit->station = NULL;
+}
+
+// Choose the functional unit containing the older instruction.
+functional_unit_t* get_older(functional_unit_t* a, functional_unit_t* b) {
+  if (a == NULL || a->station == NULL) {
+    return b;
+  }
+  
+  if (b == NULL || b->station == NULL) {
+    return a;
+  }
+
+  if (a->station->instr->index > b->station->instr->index) {
+    return a;
+  }
+
+  return b;
+}
 
 /*
  * Description:
@@ -247,7 +269,7 @@ void CDB_To_retire(int current_cycle)
 void execute_To_CDB(int current_cycle)
 {
   // Only a single value can be broadcasted at a time.
-  // However, any completed instruction that does *not* need the CDB can also be deallocated.
+  // So, we must filter through all candidates for it before deciding.
   functional_unit_t* broadcast_candidate = NULL;
 
   for (int i = 0; i < FU_TOTAL_SIZE; i++) {
@@ -260,21 +282,18 @@ void execute_To_CDB(int current_cycle)
     // To be precise, we perform this operation in the cycle *after* it has completed.
     int final_execution_cycle = fu->station->instr->tom_execute_cycle + fu->latency - 1; 
     if (current_cycle > final_execution_cycle) {
+      // Stores don't require CDB access, and can be immediately deallocated.
       if (IS_STORE(fu->station->instr->op)) {
-        fu->station->instr = NULL;
-        fu->station = NULL;
+        deallocate_instruction(fu);
       } else {
-        if (broadcast_candidate == NULL || fu->station->instr->index < broadcast_candidate->station->instr->index) {
-          broadcast_candidate = fu;
-        }
+        broadcast_candidate = get_older(broadcast_candidate, fu);
       }
     }
   }
 
   if (broadcast_candidate) {
     commonDataBus = broadcast_candidate->station->instr;
-    broadcast_candidate->station->instr = NULL;
-    broadcast_candidate->station = NULL;
+    deallocate_instruction(broadcast_candidate);
   }
 }
 
@@ -346,6 +365,8 @@ void move_issue_to_execute_if_ready(int current_cycle, reservation_station_t* st
  */
 void issue_To_execute(int current_cycle)
 {
+  // In this stage, the INT/FP pipelines are completely independent.
+  // So, it's easier to just handle them that way.
   move_issue_to_execute_if_ready(current_cycle, int_reserv_stations, RESERV_INT_SIZE, int_func_units, FU_INT_SIZE);
   move_issue_to_execute_if_ready(current_cycle, fp_reserv_stations, RESERV_FP_SIZE, fp_func_units, FU_FP_SIZE);
 }
@@ -381,7 +402,7 @@ void apply_register_renaming(instruction_t *instr)
 }
 
 // Remove the first instruction from the queue, and shift all others forward.
-void remove_first_instr()
+void instr_queue_pop()
 {
   for (int i = 0; i < INSTR_QUEUE_SIZE - 1; i++)
   {
@@ -421,17 +442,27 @@ void dispatch_To_issue(int current_cycle)
     return;
   }
 
+  instruction_t* instr = instr_queue[0];
+
+  // Branches get handled as a cycle, but are not dispatched.
+  if (IS_COND_CTRL(instr->op) || IS_UNCOND_CTRL(instr->op))
+  {
+    instr_queue_pop();
+    return;
+  }
+
+  // Otherwise, instructions should dispatch only if a RS is available.
   reservation_station_t* assigned_station = NULL;
-  if (USES_INT_FU(instr_queue[0]->op)) {
+  if (USES_INT_FU(instr->op)) {
     assigned_station = get_free_reserv(int_reserv_stations, RESERV_INT_SIZE);
   } else {
     assigned_station = get_free_reserv(fp_reserv_stations, RESERV_FP_SIZE);
   }
 
   if (assigned_station) {
-    assigned_station->instr = instr_queue[0];
+    assigned_station->instr = instr;
     assigned_station->instr->tom_issue_cycle = current_cycle;
-    remove_first_instr();
+    instr_queue_pop();
     apply_register_renaming(assigned_station->instr);
   }
 }
@@ -457,6 +488,7 @@ void fetch(instruction_trace_t *trace)
     return;
   }
 
+  // Trap instructions are completely ignored, and do not add towards our cycle count. 
   do {
     fetch_index++;
   } while (IS_TRAP(get_instr(trace, fetch_index)->op));
@@ -485,20 +517,6 @@ void fetch_To_dispatch(instruction_trace_t *trace, int current_cycle)
     if (instr_queue[i] != NULL && instr_queue[i]->tom_dispatch_cycle == 0) {
       instr_queue[i]->tom_dispatch_cycle = current_cycle;
     }
-  }
-
-  // We may be able to dispatch the head of the IFQ, if its RS is free.
-  instruction_t *instr = instr_queue[0];
-  if (instr == NULL)
-  {
-    return;
-  }
-
-  // Branches get handled as a cycle, but are not dispatched.
-  if (IS_COND_CTRL(instr->op) || IS_UNCOND_CTRL(instr->op))
-  {
-    remove_first_instr();
-    return;
   }
 }
 
