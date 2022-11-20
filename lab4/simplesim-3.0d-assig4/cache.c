@@ -505,6 +505,8 @@ cache_reg_stats(struct cache_t *cp,	/* cache instance */
 
 }
 
+md_addr_t get_PC();
+
 /* Next Line Prefetcher */
 void next_line_prefetcher(struct cache_t *cp, md_addr_t addr) {
     md_addr_t  i = addr + cp->bsize;
@@ -529,7 +531,7 @@ enum stride_rpt_state_t {
 
 struct stride_rpt_entry_t {
   md_addr_t tag;
-  md_addr_t prev;
+  md_addr_t prev_addr;
   md_addr_t stride;
   enum stride_rpt_state_t state;
 };
@@ -547,6 +549,29 @@ void stride_prefetcher(struct cache_t *cp, md_addr_t addr) {
   if (stride_rpt == NULL) {
     // This will memory leak...but we don't particularly care.
     stride_rpt = (struct stride_rpt_entry_t*) malloc(num_rpt_entries * sizeof(struct stride_rpt_entry_t));
+  }
+
+  md_addr_t pc = get_PC();
+  // This is a little bit-trick. Try it out on paper to see how it works.
+  md_addr_t rpt_index_mask = num_rpt_entries - 1;
+
+  // The tag here could be more efficient.
+  // Here, we keep the zero-ed portion instead of truncating,
+  // But since this size is dynamic, we anyway can't tune the datastructure.
+  md_addr_t rpt_index = pc & rpt_index_mask;
+  md_addr_t rpt_tag = pc & ~rpt_index_mask;
+
+  struct stride_rpt_entry_t* rpt_entry = &stride_rpt[rpt_index];
+
+  // Hit, we should process the current entry compared to the old one.
+  if (rpt_entry->tag == rpt_tag) {
+
+  } else {
+    // Make a new RPT entry.
+    rpt_entry->tag = rpt_tag;
+    rpt_entry->prev_addr = addr;
+    rpt_entry->stride = 0;
+    rpt_entry->state = INIT;
   }
 }
 
@@ -573,8 +598,6 @@ void generate_prefetch(struct cache_t *cp, md_addr_t addr) {
 	}
 
 }
-
-md_addr_t get_PC();
 
 /* print cache stats */
 void
