@@ -520,6 +520,20 @@ void open_ended_prefetcher(struct cache_t *cp, md_addr_t addr) {
 	; 
 }
 
+enum stride_rpt_state_t {
+  NO_PRED,
+  TRANSIENT,
+  INIT,
+  STEADY
+};
+
+struct stride_rpt_entry_t {
+  md_addr_t tag;
+  md_addr_t prev;
+  md_addr_t stride;
+  enum stride_rpt_state_t state;
+};
+
 /* Stride Prefetcher */
 void stride_prefetcher(struct cache_t *cp, md_addr_t addr) {
 	; 
