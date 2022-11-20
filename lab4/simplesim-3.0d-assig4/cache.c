@@ -523,12 +523,15 @@ void open_ended_prefetcher(struct cache_t *cp, md_addr_t addr) {
 }
 
 enum stride_rpt_state_t {
-  NO_PRED,
-  TRANSIENT,
-  INIT,
-  STEADY
+  RPT_NO_PRED,
+  RPT_TRANSIENT,
+  RPT_INIT,
+  RPT_STEADY
 };
 
+// The RPT is used by the stride prefetcher to store metadata about cache requests.
+// We track requests by calling PC (i.e, for the load/store), identified by tag.
+// Then, we track the request address over time, and determine the usual offset to prefetch.
 struct stride_rpt_entry_t {
   md_addr_t tag;
   md_addr_t prev_addr;
@@ -539,6 +542,20 @@ struct stride_rpt_entry_t {
 // Table of RPT entries (yes, that name is redundant.)
 // Used by the stride-prefetcher to store required metadata.
 struct stride_rpt_entry_t* stride_rpt = NULL;
+
+// Defines the transition graph of how an entry progresses through RPT states.
+enum stride_rpt_state_t stride_rpt_transitions_mismatch[] = {
+  [RPT_NO_PRED] = RPT_NO_PRED,
+  [RPT_TRANSIENT] = RPT_NO_PRED,
+  [RPT_INIT] = RPT_TRANSIENT,
+  [RPT_STEADY] = RPT_INIT
+};
+enum stride_rpt_state_t stride_rpt_transitions_match[] = {
+  [RPT_NO_PRED] = RPT_TRANSIENT,
+  [RPT_TRANSIENT] = RPT_STEADY,
+  [RPT_INIT] = RPT_STEADY,
+  [RPT_STEADY] = RPT_STEADY
+};
 
 /* Stride Prefetcher */
 void stride_prefetcher(struct cache_t *cp, md_addr_t addr) {
@@ -551,7 +568,8 @@ void stride_prefetcher(struct cache_t *cp, md_addr_t addr) {
     stride_rpt = (struct stride_rpt_entry_t*) calloc(num_rpt_entries * sizeof(struct stride_rpt_entry_t), 0);
   }
 
-  md_addr_t pc = get_PC();
+  // Discard the two bottom bits from the PC, since they are useless (since word-fetched)
+  md_addr_t pc = get_PC() >> 2;
   // This is a little bit-trick. Try it out on paper to see how it works.
   md_addr_t rpt_index_mask = num_rpt_entries - 1;
 
@@ -563,15 +581,34 @@ void stride_prefetcher(struct cache_t *cp, md_addr_t addr) {
 
   struct stride_rpt_entry_t* rpt_entry = &stride_rpt[rpt_index];
 
-  // Hit, we should process the current entry compared to the old one.
   if (rpt_entry->tag == rpt_tag) {
+    // Hit, we should process the current entry compared to the old one.
+    md_addr_t new_stride = addr - rpt_entry->prev_addr;
 
+    // Update the RPT.
+    if (new_stride == rpt_entry->stride) {
+      rpt_entry->state = stride_rpt_transitions_match[rpt_entry->state];
+    } else {
+      rpt_entry->state = stride_rpt_transitions_mismatch[rpt_entry->state];
+      rpt_entry->stride = new_stride;
+    }
+
+    // We prefetch in all states, except for when explicitly disabled.
+    if (rpt_entry->state != RPT_NO_PRED) {
+      md_addr_t prefetch_addr = addr + rpt_entry->stride;
+      
+      // Perform a prefetch if the desired address is not already in the cache.
+      if (cache_probe(cp, prefetch_addr) != 0) {
+        // TODO: validate call.
+        cache_access(cp, Read, prefetch_addr, NULL, cp->bsize, 0, NULL, NULL, 1);
+      }
+    }
   } else {
-    // Make a new RPT entry.
+    // Miss, make a new RPT entry.
     rpt_entry->tag = rpt_tag;
     rpt_entry->prev_addr = addr;
     rpt_entry->stride = 0;
-    rpt_entry->state = INIT;
+    rpt_entry->state = RPT_INIT;
   }
 }
 
