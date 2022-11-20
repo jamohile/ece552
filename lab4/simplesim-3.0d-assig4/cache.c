@@ -534,9 +534,20 @@ struct stride_rpt_entry_t {
   enum stride_rpt_state_t state;
 };
 
+// Table of RPT entries (yes, that name is redundant.)
+// Used by the stride-prefetcher to store required metadata.
+struct stride_rpt_entry_t* stride_rpt = NULL;
+
 /* Stride Prefetcher */
 void stride_prefetcher(struct cache_t *cp, md_addr_t addr) {
-	; 
+  // There is no explicit init step, yet the stride-prefetcher's size is configurable.
+  // So, we handle initialization here if needed.
+  // This usage of the variable is based on conventions in configuration.
+  md_addr_t num_rpt_entries = cp->prefetch_type;
+  if (stride_rpt == NULL) {
+    // This will memory leak...but we don't particularly care.
+    stride_rpt = (struct stride_rpt_entry_t*) malloc(num_rpt_entries * sizeof(struct stride_rpt_entry_t));
+  }
 }
 
 
