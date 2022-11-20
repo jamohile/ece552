@@ -548,7 +548,7 @@ void stride_prefetcher(struct cache_t *cp, md_addr_t addr) {
   md_addr_t num_rpt_entries = cp->prefetch_type;
   if (stride_rpt == NULL) {
     // This will memory leak...but we don't particularly care.
-    stride_rpt = (struct stride_rpt_entry_t*) malloc(num_rpt_entries * sizeof(struct stride_rpt_entry_t));
+    stride_rpt = (struct stride_rpt_entry_t*) calloc(num_rpt_entries * sizeof(struct stride_rpt_entry_t), 0);
   }
 
   md_addr_t pc = get_PC();
