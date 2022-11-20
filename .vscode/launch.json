@@ -18,7 +18,7 @@
               "ignoreFailures": true
           }
       ],
-      "args": ["-max:inst", "17000", "/cad2/ece552f/benchmarks/compress.eio"],
+      "args": ["-max:inst", "15", "/cad2/ece552f/benchmarks/gcc.eio"],
     }
 
   ]

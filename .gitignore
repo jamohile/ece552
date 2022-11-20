@@ -7,5 +7,4 @@ sysprobe
 **/*.a
 **/out
 output.log
-submission
 predictor

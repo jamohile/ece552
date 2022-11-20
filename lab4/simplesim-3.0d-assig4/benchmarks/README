@@ -1,0 +1,28 @@
+TO RUN THE BENCHMARKS:
+
+GCC:
+
+  to run: 		./sim-cache -redir:prog cc.myout -config cache-config/cache-lru.cfg benchmarks/cc1.pisa-big -O benchmarks/1stmt.i
+  to test output:	diff benchmarks/1stmt.s benchmarks/1stmt.s.ref
+
+
+COMPRESS95:
+
+  to run:		./sim-cache -redir:prog compress95.myout -config cache-config/cache-lru.cfg benchmarks/compress95.pisa-big < benchmarks/compress95.in
+  to test output:	diff compress95.myout benchmarks/compress95.out
+
+
+GO:
+
+  to run:		./sim-cache -redir:prog go.myout -config cache-config/cache-lru.cfg benchmarks/go.pisa-big 50 9 benchmarks/2stone9.in
+  to test output:	diff go.myout benchmarks/go.out
+
+
+Additional Notes:
+----------------
+
+  * Change the configuration file as needed.
+  * Compare your generated output with the one provided. Be aware that when you don't run a benchmark to completion,
+    (i.e., when you limit the number of instructions to simulate by the max:inst flag) only a part of the reference output will be generated.
+
+

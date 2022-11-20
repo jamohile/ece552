@@ -1,0 +1,14 @@
+/* general register dependence decoders */
+#define DGPR(N)                 (N)
+#define DGPR_D(N)               ((N) &~1)
+
+/* floating point register dependence decoders */
+#define DFPR_L(N)               (((N)+32)&~1)
+#define DFPR_F(N)               (((N)+32)&~1)
+#define DFPR_D(N)               (((N)+32)&~1)
+
+/* miscellaneous register dependence decoders */
+#define DHI                     (0+32+32)
+#define DLO                     (1+32+32)
+#define DFCC                    (2+32+32)
+#define DTMP                    (3+32+32)
