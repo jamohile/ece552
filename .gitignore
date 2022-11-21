@@ -9,3 +9,5 @@ sysprobe
 output.log
 predictor
 sim-cache
+out.log
+*.s
