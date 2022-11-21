@@ -1,12 +1,14 @@
 // Microbenchmark for stride prefetcher.
 
-#define BENCHMARK UPDATED_STRIDES
+// Uncomment to select a benchmark.
+// #define BM_UPDATED_STRIDES
+#define BM_DISABLED_PREDICTION
 
-#define ITERS 1
+#define ITERS 0
 #define BLOCK_SIZE_BYTES 64
 
 // This benchmark seeks to validate correct detection and updating across various multi-block level strides.
-#if BENCHMARK == UPDATED_STRIDES
+#ifdef BM_UPDATED_STRIDES
   char data[1000][BLOCK_SIZE_BYTES];
 
   // Repeating some number of times, simply iterate across multiple different stride lengths.
@@ -38,6 +40,30 @@
           sum ^= data[access_index][0];
           access_index += stride;
         }
+      }
+    }
+
+    return sum;
+  }
+#endif
+
+// Here, we want to validate that after 2 failed stride predictions, we stop predicting altogether.
+// The baselines will be the same as above.
+// But, we expect the prediction accesses to cap at overhead + 1.
+// The initial RPT creation will not trigger a prefetch, but the next will (as we go to transient)
+// Then, we'll fall back to no_pred.
+#ifdef BM_DISABLED_PREDICTION
+  char data[1000][BLOCK_SIZE_BYTES];
+
+  int main(void) {
+    int sum;
+
+    int i;
+    for (i = 0; i < ITERS; i++) {
+      // We achieve this behaviour by just using a different stride each time.
+      int access_index;
+      for (access_index = 1; access_index < 100; access_index *= 2) {
+        sum ^= data[access_index][0];
       }
     }
 
