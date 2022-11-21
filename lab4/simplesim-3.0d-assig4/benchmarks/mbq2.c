@@ -33,6 +33,8 @@
         // Perform enough accesses at each stride for us to reach steady state.
         int accesses_at_stride;
         for (accesses_at_stride = 0; accesses_at_stride < 5; accesses_at_stride++) {
+          // Note: can find the PC of this by compiling, and looking for the "lb" instruction within main.
+          // This makes it easier to filter through the RPT behaviour.
           sum ^= data[access_index][0];
           access_index += stride;
         }
