@@ -597,11 +597,8 @@ void stride_prefetcher(struct cache_t *cp, md_addr_t addr) {
     if (rpt_entry->state != RPT_NO_PRED) {
       md_addr_t prefetch_addr = addr + rpt_entry->stride;
       
-      // Perform a prefetch if the desired address is not already in the cache.
-      if (cache_probe(cp, prefetch_addr) != 0) {
-        // TODO: validate call.
-        cache_access(cp, Read, prefetch_addr, NULL, cp->bsize, 0, NULL, NULL, 1);
-      }
+      // TODO: validate call.
+      cache_access(cp, Read, prefetch_addr, NULL, cp->bsize, 0, NULL, NULL, 1);
     }
   } else {
     // Miss, make a new RPT entry.
