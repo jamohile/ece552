@@ -585,17 +585,16 @@ void stride_prefetcher(struct cache_t *cp, md_addr_t addr) {
     // Update the RPT.
     if (new_stride == rpt_entry->stride) {
       rpt_entry->state = stride_rpt_transitions_match[rpt_entry->state];
-      rpt_entry->prev_addr = addr;
     } else {
       rpt_entry->state = stride_rpt_transitions_mismatch[rpt_entry->state];
       rpt_entry->stride = new_stride;
     }
-
+    
+    rpt_entry->prev_addr = addr;
+    
     // We prefetch in all states, except for when explicitly disabled.
     if (rpt_entry->state != RPT_NO_PRED) {
       md_addr_t prefetch_addr = CACHE_BADDR(cp, addr + rpt_entry->stride);
-      
-      // TODO: validate call.
       cache_access(cp, Read, prefetch_addr, NULL, cp->bsize, 0, NULL, NULL, 1);
     }
   } else {
