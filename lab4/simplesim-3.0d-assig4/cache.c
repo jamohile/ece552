@@ -586,8 +586,10 @@ void stride_prefetcher(struct cache_t *cp, md_addr_t addr) {
     if (new_stride == rpt_entry->stride) {
       rpt_entry->state = stride_rpt_transitions_match[rpt_entry->state];
     } else {
+      if (rpt_entry->state != RPT_STEADY) {
+        rpt_entry->stride = new_stride;
+      }
       rpt_entry->state = stride_rpt_transitions_mismatch[rpt_entry->state];
-      rpt_entry->stride = new_stride;
     }
     
     rpt_entry->prev_addr = addr;
