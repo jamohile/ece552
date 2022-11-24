@@ -562,11 +562,13 @@ void stride_prefetcher(struct cache_t *cp, md_addr_t addr) {
   md_addr_t num_rpt_entries = cp->prefetch_type;
   if (stride_rpt == NULL) {
     // This will memory leak...but we don't particularly care.
-    stride_rpt = (struct stride_rpt_entry_t*) calloc(sizeof(struct stride_rpt_entry_t), num_rpt_entries);
+    stride_rpt = (struct stride_rpt_entry_t*) calloc(num_rpt_entries, sizeof(struct stride_rpt_entry_t));
   }
 
-  // Discard the two bottom bits from the PC, since they are useless (since word-fetched)
-  md_addr_t pc = get_PC() >> 2;
+  // Discard the three bottom bits from the PC, since they are useless.
+  // Note that the lab specifies a 2-bit discard, but the lab machines appear to use 64-bit instructions,
+  // which means 3 unneeded bottom bits (since each inst is 8 bytes, bottom 3 bits always 0)
+  md_addr_t pc = get_PC() >> 3;
   // This is a little bit-trick. Try it out on paper to see how it works.
   md_addr_t rpt_index_mask = num_rpt_entries - 1;
 
@@ -595,7 +597,10 @@ void stride_prefetcher(struct cache_t *cp, md_addr_t addr) {
     rpt_entry->prev_addr = addr;
     
     // We prefetch in all states, except for when explicitly disabled.
-    if (rpt_entry->state != RPT_NO_PRED) {
+    // We also check for the case when stride is first computed.
+    // Here, since the previous address was init to 0, stride will just be the new address.
+    // This is obviously not something we should fetch.
+    if (rpt_entry->state != RPT_NO_PRED && new_stride != addr) {
       md_addr_t prefetch_addr = CACHE_BADDR(cp, addr + rpt_entry->stride);
       cache_access(cp, Read, prefetch_addr, NULL, cp->bsize, 0, NULL, NULL, 1);
     }
