@@ -514,11 +514,6 @@ void next_line_prefetcher(struct cache_t *cp, md_addr_t addr) {
     cache_access(cp, Read, new_block_address, NULL, cp->bsize, 0, NULL, NULL, 1);        
 }
 
-/* Open Ended Prefetcher */
-void open_ended_prefetcher(struct cache_t *cp, md_addr_t addr) {
-	; 
-}
-
 enum stride_rpt_state_t {
   RPT_NO_PRED,
   RPT_TRANSIENT,
@@ -534,6 +529,10 @@ struct stride_rpt_entry_t {
   md_addr_t prev_addr;
   md_addr_t stride;
   enum stride_rpt_state_t state;
+
+  // Additional fields for open-ended.
+  int probation;
+  int last_access;
 };
 
 // Table of RPT entries (yes, that name is redundant.)
@@ -613,6 +612,103 @@ void stride_prefetcher(struct cache_t *cp, md_addr_t addr) {
   }
 }
 
+
+int i = 0;
+#define prefetch_schedule_size (1000)
+md_addr_t prefetch_schedule[prefetch_schedule_size];
+
+/* Open Ended Prefetcher: a non-trivial modification to stride. */
+void open_ended_prefetcher(struct cache_t *cp, md_addr_t addr) {
+  // There is no explicit init step, yet the stride-prefetcher's size is configurable.
+  // So, we handle initialization here if needed.
+  // This usage of the variable is based on conventions in configuration.
+  md_addr_t num_rpt_entries = 16;
+  if (stride_rpt == NULL) {
+    // This will memory leak...but we don't particularly care.
+    stride_rpt = (struct stride_rpt_entry_t*) calloc(num_rpt_entries, sizeof(struct stride_rpt_entry_t));
+  }
+
+  // Discard the three bottom bits from the PC, since they are useless.
+  // Note that the lab specifies a 2-bit discard, but the lab machines appear to use 64-bit instructions,
+  // which means 3 unneeded bottom bits (since each inst is 8 bytes, bottom 3 bits always 0)
+  md_addr_t pc = get_PC() >> 3;
+  // This is a little bit-trick. Try it out on paper to see how it works.
+  md_addr_t rpt_index_mask = num_rpt_entries - 1;
+
+  // The tag here could be more efficient.
+  // Here, we keep the zero-ed portion instead of truncating,
+  // But since this size is dynamic, we anyway can't tune the datastructure.
+  md_addr_t rpt_index = pc & rpt_index_mask;
+  md_addr_t rpt_tag = pc & ~rpt_index_mask;
+
+  struct stride_rpt_entry_t* rpt_entry = &stride_rpt[rpt_index];
+
+  if (rpt_entry->tag == rpt_tag) {
+    // Hit, we should process the current entry compared to the old one.
+    md_addr_t new_stride = addr - rpt_entry->prev_addr;
+
+    // Update the RPT.
+    if (new_stride == rpt_entry->stride) {
+      rpt_entry->state = stride_rpt_transitions_match[rpt_entry->state];
+    } else {
+      if (rpt_entry->state != RPT_STEADY) {
+        rpt_entry->stride = new_stride;
+      }
+      rpt_entry->state = stride_rpt_transitions_mismatch[rpt_entry->state];
+    }
+    
+    rpt_entry->prev_addr = addr;
+    
+    // We prefetch in all states, except for when explicitly disabled.
+    // We also check for the case when stride is first computed.
+    // Here, since the previous address was init to 0, stride will just be the new address.
+    // This is obviously not something we should fetch.
+    if (
+      (rpt_entry->state != RPT_NO_PRED && new_stride != addr)
+      // If the instruction hasn't been used recently, don't prefetch it, because it may cause an evict.
+      && (i - rpt_entry->last_access < 32)
+    ) {
+      md_addr_t prefetch_addr = CACHE_BADDR(cp, addr + rpt_entry->stride);
+
+      // Based on the last time the instruction was called, predict the next time it'll be used.
+      int delay = i - rpt_entry->last_access;
+      // If the instruction will be used soon, prefetch it now.
+      // Otherwise, schedule it for later prefetch.
+      if (delay > 100) {
+        // When scheduling, we prefetch a bit before projected usage.
+        prefetch_schedule[(i + delay - 2) % prefetch_schedule_size] = prefetch_addr;
+      } else {
+        cache_access(cp, Read, prefetch_addr, NULL, cp->bsize, 0, NULL, NULL, 1);
+      }
+    }
+
+    // If there are any prefetches schedules, perform them.
+    if (prefetch_schedule[i % prefetch_schedule_size] != 0) {
+      cache_access(cp, Read, prefetch_schedule[i % prefetch_schedule_size], NULL, cp->bsize, 0, NULL, NULL, 1);
+      prefetch_schedule[i % prefetch_schedule_size] = 0;
+    }
+
+    if (rpt_entry->probation > 0) {
+      rpt_entry->probation -= 1;
+    }
+
+    rpt_entry->last_access = i;
+  } else {
+    if (rpt_entry->tag == 0 || rpt_entry->probation == 64 || rpt_entry->state == RPT_NO_PRED) {
+      // Miss, make a new RPT entry.
+      rpt_entry->tag = rpt_tag;
+      rpt_entry->prev_addr = addr;
+      rpt_entry->stride = 0;
+      rpt_entry->state = RPT_INIT;
+      rpt_entry->probation = 0;
+      rpt_entry->last_access = i;
+    } else {
+      rpt_entry->probation++;
+    }
+  }
+
+  i++;
+}
 
 /* cache x might generate a prefetch after a regular cache access to address addr */
 void generate_prefetch(struct cache_t *cp, md_addr_t addr) {
