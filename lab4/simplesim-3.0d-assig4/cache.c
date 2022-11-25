@@ -509,11 +509,14 @@ md_addr_t get_PC();
 
 /* Next Line Prefetcher */
 void next_line_prefetcher(struct cache_t *cp, md_addr_t addr) {
+    /* ECE552 Assignment 4 - BEGIN CODE*/
     md_addr_t new_addr = addr + cp->bsize;
     md_addr_t new_block_address = CACHE_BADDR(cp, new_addr);
-    cache_access(cp, Read, new_block_address, NULL, cp->bsize, 0, NULL, NULL, 1);        
+    cache_access(cp, Read, new_block_address, NULL, cp->bsize, 0, NULL, NULL, 1);      
+    /* ECE552 Assignment 4 - END CODE*/  
 }
 
+/* ECE552 Assignment 4 - BEGIN CODE*/
 enum stride_rpt_state_t {
   RPT_NO_PRED,
   RPT_TRANSIENT,
@@ -553,8 +556,12 @@ enum stride_rpt_state_t stride_rpt_transitions_match[] = {
   [RPT_STEADY] = RPT_STEADY
 };
 
+/* ECE552 Assignment 4 - END CODE*/
+
 /* Stride Prefetcher */
 void stride_prefetcher(struct cache_t *cp, md_addr_t addr) {
+  /* ECE552 Assignment 4 - BEGIN CODE*/
+
   // There is no explicit init step, yet the stride-prefetcher's size is configurable.
   // So, we handle initialization here if needed.
   // This usage of the variable is based on conventions in configuration.
@@ -610,15 +617,20 @@ void stride_prefetcher(struct cache_t *cp, md_addr_t addr) {
     rpt_entry->stride = 0;
     rpt_entry->state = RPT_INIT;
   }
+
+  /* ECE552 Assignment 4 - END CODE*/
 }
 
-
+/* ECE552 Assignment 4 - BEGIN CODE*/
 int i = 0;
 #define prefetch_schedule_size (1000)
 md_addr_t prefetch_schedule[prefetch_schedule_size];
+/* ECE552 Assignment 4 - END CODE*/
 
 /* Open Ended Prefetcher: a non-trivial modification to stride. */
 void open_ended_prefetcher(struct cache_t *cp, md_addr_t addr) {
+  /* ECE552 Assignment 4 - BEGIN CODE*/
+  
   // There is no explicit init step, yet the stride-prefetcher's size is configurable.
   // So, we handle initialization here if needed.
   // This usage of the variable is based on conventions in configuration.
@@ -708,6 +720,8 @@ void open_ended_prefetcher(struct cache_t *cp, md_addr_t addr) {
   }
 
   i++;
+
+  /* ECE552 Assignment 4 - END CODE*/
 }
 
 /* cache x might generate a prefetch after a regular cache access to address addr */
