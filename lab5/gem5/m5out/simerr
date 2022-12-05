@@ -1,0 +1,11 @@
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+  File "/nfs/ug/homes-0/m/myrto/ece552_2013_summer/gem5-stable-f75ee4849c40/src/python/m5/main.py", line 359, in main
+    exec filecode in scope
+  File "configs/example/se.py", line 58, in <module>
+    import Simulation
+  File "/nfs/ug/homes-0/m/myrto/ece552_2013_summer/gem5-stable-f75ee4849c40/configs/common/Simulation.py", line 37, in <module>
+    from O3_ARM_v7a import *
+  File "/nfs/ug/homes-0/m/myrto/ece552_2013_summer/gem5-stable-f75ee4849c40/configs/common/O3_ARM_v7a.py", line 86, in <module>
+    class O3_ARM_v7a_FUP(FUPool):
+NameError: name 'FUPool' is not defined
