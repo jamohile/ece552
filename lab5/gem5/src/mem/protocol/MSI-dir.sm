@@ -56,6 +56,7 @@ machine(Directory, "Directory protocol")
 
     // Check permission.
     S_D, AccessPermission:Read_Only, desc="Downgrading from M to S.";
+    SDS_W, AccessPermission:Read_Only, desc="Writing back recieved data."; 
   }
 
   // =============================================================================
@@ -652,9 +653,17 @@ getDirectoryEntry(address).Sharers);
     a_sendWriteBackAck;
     i_popIncomingRequestQueue;
   }
-  transition(S_D, {Data}, S) {
-    pl2_writeDataToDirectory;
-    w_deallocateTBE;
+  transition(S_D, {Data}, SDS_W) {
+    lq2_queueMemoryWBRequest;
     pr_popIncomingResponseQueue;
+  }
+
+  // From SDS_W
+  transition(SDS_W, {GETS, GETM, PUTS_NotLast, PUTS_Last, PUTM_Owner, PUTM_NotOwner, Data}, SDS_W) {
+    z_stall;
+  }
+  transition(SDS_W, {Memory_Ack}, S) {
+    w_deallocateTBE;
+    qm_popMemQueue;
   }
 }
