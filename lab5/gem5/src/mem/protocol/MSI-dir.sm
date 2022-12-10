@@ -535,7 +535,16 @@ getDirectoryEntry(address).Sharers);
   // TRANSITIONS
   // =============================================================================
 
-  /* ECE552: Complete this section here */
-
-
+  // From I
+  transition(I, {GETS}, S) {
+    d_sendData;
+    ars2_addRequestorToSharers;
+  }
+  transition(I, {GETM}, M) {
+    d_sendData;
+    e_ownerIsRequestor;
+  }
+  transition(I, {PUTS_NotLast, PUTM_NotOwner}, I) {
+    a_sendWriteBackAck;
+  }
 }
