@@ -46,6 +46,10 @@ machine(Directory, "Directory protocol")
     //ECE552: Transient States
     //========================
 
+    // These are async since a memory fetch is needed.
+    IS_F, AccessPermission:Busy, desc="Fetching from memory for S.";
+    IM_F, AccessPermission:Busy, desc="Fetching from memory for M.";
+
     // Check permission.
     S_D, AccessPermission:Read_Only, desc="Downgrading from M to S.";
   }
@@ -534,38 +538,69 @@ getDirectoryEntry(address).Sharers);
   // =============================================================================
   // TRANSITIONS
   // =============================================================================
+  // TODO: handle memory handshake for writebacks.
 
   // From I
-  transition(I, {GETS}, S) {
-    d_sendData;
+  transition(I, {GETS}, IS_F) {
+    vv_allocateTBEFromRequestNet;
+    qf_queueMemoryFetchRequest;
+    // TODO: validate.
     ars2_addRequestorToSharers;
+    i_popIncomingRequestQueue;
   }
-  transition(I, {GETM}, M) {
-    d_sendData;
+  transition(I, {GETM}, IM_F) {
+    vv_allocateTBEFromRequestNet;
+    qf_queueMemoryFetchRequest;
     e_ownerIsRequestor;
+    i_popIncomingRequestQueue;
   }
   transition(I, {PUTS_NotLast, PUTM_NotOwner}, I) {
     a_sendWriteBackAck;
+    i_popIncomingRequestQueue;
+  }
+
+  // From I*_F
+  // This could probably be optimized by e.g mixing in S.
+  // TODO: validate
+  transition(IS_F, {GETS, GETM}, IS_F) {
+    z_stall;
+  }
+  transition(IM_F, {GETS, GETM}, IM_F) {
+    z_stall;
+  }
+  transition(IS_F, {Memory_Data}, S) {
+    w_deallocateTBE;
+    d_sendData;
+    qm_popMemQueue;
+  }
+  transition(IM_F, {Memory_Data}, M) {
+    w_deallocateTBE;
+    d_sendData;
+    qm_popMemQueue;
   }
 
   // From S
   transition(S, {GETS}, S) {
     ds_sendSharedData;
     ars2_addRequestorToSharers;
+    i_popIncomingRequestQueue;
   }
   transition(S, {GETM}, M) {
     ds2_sendSharedData;
     fwm_sendFwdInvToSharersMinusRequestor;
     cs_clearSharers;
     e_ownerIsRequestor;
+    i_popIncomingRequestQueue;
   }
   transition(S, {PUTS_NotLast, PUTM_NotOwner}, S) {
     kk_removeRequestSharer;
     a_sendWriteBackAck;
+    i_popIncomingRequestQueue;
   }
   transition(S, {PUTS_Last}, I) {
     kk_removeRequestSharer;
     a_sendWriteBackAck;
+    i_popIncomingRequestQueue;
   }
 
   // From M
@@ -575,18 +610,22 @@ getDirectoryEntry(address).Sharers);
     aos_addOwnertoSharers;
     ars2_addRequestorToSharers;
     c_clearOwner;
+    i_popIncomingRequestQueue;
   }
   transition(M, {GETM}, M) {
     f_forwardRequest;
     e_ownerIsRequestor;
+    i_popIncomingRequestQueue;
   }
   transition(M, {PUTS_NotLast, PUTS_Last, PUTM_NotOwner}, M) {
     a_sendWriteBackAck;
+    i_popIncomingRequestQueue;
   }
   transition(M, {PUTM_Owner}, I) {
     pl_writeDataToDirectory;
     c_clearOwner;
     a_sendWriteBackAck;
+    i_popIncomingRequestQueue;
   }
 
   // From S_D
@@ -596,9 +635,11 @@ getDirectoryEntry(address).Sharers);
   transition(S_D, {PUTS_NotLast, PUTS_Last, PUTM_NotOwner}, S_D) {
     kk_removeRequestSharer;
     a_sendWriteBackAck;
+    i_popIncomingRequestQueue;
   }
   transition(S_D, {Data}, S) {
     pl2_writeDataToDirectory;
     w_deallocateTBE;
+    pr_popIncomingResponseQueue;
   }
 }
