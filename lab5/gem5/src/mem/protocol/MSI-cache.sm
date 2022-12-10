@@ -750,9 +750,8 @@ machine(L1Cache, "MSI L1 Cache")
   transition(M, {Replacement}, MI_A) {
     v_allocateTBE;
     x_copyDataFromCacheToTBE;
-    de_sendDataFromCacheToDir;
-    h_deallocateL1CacheBlock;
     bm_issuePUTM;
+    h_deallocateL1CacheBlock;
     m_popMandatoryQueue;
   }
   transition(M, {Fwd_GetS}, S) {
