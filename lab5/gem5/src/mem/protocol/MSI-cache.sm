@@ -679,4 +679,27 @@ machine(L1Cache, "MSI L1 Cache")
     h_deallocateL1CacheBlock;
     fi_sendInvAck;
   }
+
+  // From SM_AD
+  transition(SM_AD, {Load}, SM_AD) {
+    r_load_hit;
+  }
+  transition(SM_AD, {Store, Replacement, Fwd_GetS, Fwd_GetM}, SM_AD) {
+    z_stall;
+  }
+  transition(SM_AD, {Inv}, IM_AD) {
+    fi_sendInvAck;
+  }
+  transition(SM_AD, {Data_from_Dir_No_Acks, Data_from_Dir_Ack_Cnt_Last}, M) {
+    u_writeDataToCache;
+    w_deallocateTBE;
+    sx_store_hit;
+  }
+  transition(SM_AD, {Data_from_Dir_Ack_Cnt}, SM_A) {
+    u_writeDataToCache;
+    q_updateAckCount;
+  }
+  transition(SM_AD, {Inv_Ack}, SM_AD) {
+    q_updateAckCount;
+  }
 }
