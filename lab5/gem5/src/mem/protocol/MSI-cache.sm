@@ -619,4 +619,14 @@ machine(L1Cache, "MSI L1 Cache")
     v_allocateTBE;
     am_issueGetM;
   }
+
+  // From IS_D
+  transition(IS_D, {Load, Store, Replacement, Inv}, IS_D) {
+    z_stall;
+  }
+  transition(IS_D, {Data_from_Dir_No_Acks, Data_from_Owner}, S) {
+    u_writeDataToCache;
+    w_deallocateTBE;
+    rx_load_hit;
+  }
 }
