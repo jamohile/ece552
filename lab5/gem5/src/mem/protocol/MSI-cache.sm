@@ -740,4 +740,19 @@ machine(L1Cache, "MSI L1 Cache")
     e_sendDataFromCacheToRequestor;
     h_deallocate_L1CacheBlock;
   }
+
+  // From MI_A
+  transition(MI_A, {Load, Store, Replacement}, MI_A) {
+    z_stall;
+  }
+  transition(MI_A, {Fwd_GetS}, SI_A) {
+    dee_sendDataFromTBEToDir;
+    ee_sendDataFromTBEToRequestor;
+  }
+  transition(MI_A, {Fwd_GetM}, II_A) {
+    ee_sendDataFromTBEToRequestor;
+  }
+  transitions(MI_A, {WB_Ack}, I) {
+    w_deallocateTBE;
+  }
 }
