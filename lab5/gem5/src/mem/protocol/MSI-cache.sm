@@ -608,7 +608,15 @@ machine(L1Cache, "MSI L1 Cache")
   // TRANSITIONS
   // =============================================================================
 
-  /* ECE552: Complete this section here */
- 
-
+  // From I
+  transition(I, Load, IS_D) {
+    i_allocateL1CacheBlock;
+    v_allocateTBE;
+    as_issueGetS;
+  }
+  transition(I, Store, IM_AD) {
+    i_allocateL1CacheBlock;
+    v_allocateTBE;
+    am_issueGetM;
+  }
 }
