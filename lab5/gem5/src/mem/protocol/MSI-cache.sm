@@ -42,18 +42,37 @@ machine(L1Cache, "MSI L1 Cache")
     //ECE552: Stable States
     //=====================
 
+    // Base States required by the MSI protocol.
+    // These are 'implementation independent'.
     I, AccessPermission:Invalid, desc="Not Present/Invalid";
     S, AccessPermission:Read_Only, desc="Shared. Data can be read but not written.";
     M, AccessPermission:Read_Write, desc="Modified. Data can be read or written.";
-
-    /* ECE552: Complete this section here */
    
     //========================
     //ECE552: Transient States
     //========================
 
-    /* ECE552: Complete this section here */
-
+    // Any state can transition to any other state.
+    // Thus, the list of all *possible* transients, and whether they are truly needed.
+    // I_S: yes. need to get data, and, possible that another got M that needs to be invalidated.
+    // I_M: yes. possible that someone else has S/M that needs to be invalidated.
+    // S_I: yes. must respond until directory updates.
+    // S_M: yes. need to make sure other S invalidate.
+    // M_I: yes. must keep responding to data until directory updates to new location.
+    // M_S: yes. same reason.
+    I_S, AccessPermission:Busy, desc="Transitioning from invalid to shared, waiting for data and downgrade.";
+    I_M, AccessPermission:Busy, desc="Transitioning from invalid to modified, waiting for data and invalidation.";
+    // While requesting invalidation, it is possible that we still get requests.
+    // We must be able to service these.
+    S_I: AccessPermission:Read_Only, desc="Transition from shared to invalid, waiting for confirmation.";
+    // While we are requesting an update, any requests sent to us for data can still be serviced.
+    // The only case this can be stale is if someone else has M, in which case, the directory will not send us any more requests.
+    S_M: AccessPermission:Read_Only, desc="Trying to upgrade.";
+    // When evicting, we write-back. Cannot change anymore at that point.
+    M_I: AccessPermission:Read_Only, desc="Trying to evict, waiting for confirmation.";
+    // During downgrade, we write-back modified data.
+    // Therefore, it's "committed" as of that time, and can't be modified any more.
+    M_S: AccessPermission:Read_Only, desc="Trying to downgrade, waiting for confirmation.";
   }
 
   // =============================================================================
