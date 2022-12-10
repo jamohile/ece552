@@ -766,4 +766,12 @@ machine(L1Cache, "MSI L1 Cache")
   transition(SI_A, {WB_Ack}, I) {
     w_deallocate_TBE;
   }
+
+  // From II_A
+  transition(II_A, {Load, Store, Replacement}, II_A) {
+    z_stall;
+  }
+  transition(II_A, {WB_Ack}, I) {
+    w_deallocateTBE;
+  }
 }
