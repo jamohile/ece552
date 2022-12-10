@@ -662,4 +662,21 @@ machine(L1Cache, "MSI L1 Cache")
     w_deallocateTBE;
     sx_store_hit;
   }
+
+  // From S
+  transition(S, {Load}, S) {
+    r_load_hit;
+  }
+  transition(S, {Store}, SM_AD) {
+    v_allocateTBE;
+    am_issueGetM;
+  }
+  transition(S, {Replacement}, SI_A) {
+    v_allocateTBE;
+    bs_issuePUTS;
+  }
+  transition(S, {Inv}, I) {
+    h_deallocateL1CacheBlock;
+    fi_sendInvAck;
+  }
 }
