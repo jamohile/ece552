@@ -567,4 +567,24 @@ getDirectoryEntry(address).Sharers);
     kk_removeRequestSharer;
     a_sendWriteBackAck;
   }
+
+  // From M
+  transition(M, {GETS}, S_D) {
+    f_forwardRequest;
+    aos_addOwnertoSharers;
+    ars_addRequestorToSharers;
+    c_clearOwner;
+  }
+  transition(M, {GETM}, M) {
+    f_forwardRequest;
+    e_ownerIsRequestor;
+  }
+  transition(M, {PUTS_NotLast, PUTS_Last, PUTM_NotOwner}, M) {
+    a_sendWriteBackAck;
+  }
+  transition(M, {PUTM_Owner}, I) {
+    pl_writeDataToDirectory;
+    c_clearOwner;
+    a_sendWriteBackAck;
+  }
 }
