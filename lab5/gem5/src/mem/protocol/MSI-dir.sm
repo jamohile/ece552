@@ -40,14 +40,14 @@ machine(Directory, "Directory protocol")
 
     I, AccessPermission:Invalid, desc="Not Present/Invalid";
     M, AccessPermission:Read_Write, desc="Modified";
-
-    /* ECE552: Complete this section here */
+    S, AccessPermission:Read_Only, desc="Shared";
 
     //========================
     //ECE552: Transient States
     //========================
 
-    /* ECE552: Complete this section here */
+    // Check permission.
+    S_D, AccessPermission:Read_Only, desc="Downgrading from M to S.";
   }
 
   // =============================================================================
