@@ -764,7 +764,7 @@ machine(L1Cache, "MSI L1 Cache")
     fi_sendInvAck;
   }
   transition(SI_A, {WB_Ack}, I) {
-    w_deallocate_TBE;
+    w_deallocateTBE;
   }
 
   // From II_A
