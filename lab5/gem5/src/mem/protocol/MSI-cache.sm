@@ -717,4 +717,27 @@ machine(L1Cache, "MSI L1 Cache")
     w_deallocateTBE;
     sx_store_hit;
   }
+
+  // From M
+  transition(M, {Load}, M) {
+    r_load_hit;
+  }
+  transition(M, {Store}, M) {
+    s_load_hit;
+  }
+  transition(M, {Replacement}, MI_A) {
+    v_allocateTBE;
+    x_copyDataFromCacheToTBE;
+    de_sendDataFromCacheToDir;
+    h_deallocate_L1CacheBlock;
+    bm_issuePUTM;
+  }
+  transition(M, {Fwd_GetS}, S) {
+    de_sendDataFromCacheToDir;
+    e_sendDataFromCacheToRequestor;
+  }
+  transition(M, {Fwd_GetM}, I) {
+    e_sendDataFromCacheToRequestor;
+    h_deallocate_L1CacheBlock;
+  }
 }
