@@ -50,6 +50,10 @@ machine(Directory, "Directory protocol")
     IS_F, AccessPermission:Busy, desc="Fetching from memory for S.";
     IM_F, AccessPermission:Busy, desc="Fetching from memory for M.";
 
+    // Async due to a memory writeback.
+    // TODO: SDM
+    MI_W, AccessPermission:Read_Only, desc="Writing back to memory.";
+
     // Check permission.
     S_D, AccessPermission:Read_Only, desc="Downgrading from M to S.";
   }
@@ -544,8 +548,6 @@ getDirectoryEntry(address).Sharers);
   transition(I, {GETS}, IS_F) {
     vv_allocateTBEFromRequestNet;
     qf_queueMemoryFetchRequest;
-    // TODO: validate.
-    ars2_addRequestorToSharers;
     i_popIncomingRequestQueue;
   }
   transition(I, {GETM}, IM_F) {
@@ -570,6 +572,7 @@ getDirectoryEntry(address).Sharers);
   }
   transition(IS_F, {Memory_Data}, S) {
     w_deallocateTBE;
+    ars1_addRequestorToSharers;
     d_sendData;
     qm_popMemQueue;
   }
@@ -610,7 +613,7 @@ getDirectoryEntry(address).Sharers);
     aos_addOwnertoSharers;
     ars2_addRequestorToSharers;
     c_clearOwner;
-    i_popIncomingRequestQueue;
+    i_popIncomingRequestQueue; 
   }
   transition(M, {GETM}, M) {
     f_forwardRequest;
@@ -621,11 +624,23 @@ getDirectoryEntry(address).Sharers);
     a_sendWriteBackAck;
     i_popIncomingRequestQueue;
   }
-  transition(M, {PUTM_Owner}, I) {
+  transition(M, {PUTM_Owner}, MI_W) {
+    vv_allocateTBEFromRequestNet;
     pl_writeDataToDirectory;
     c_clearOwner;
-    a_sendWriteBackAck;
+    lq_queueMemoryWBRequest;
     i_popIncomingRequestQueue;
+  }
+
+  // From MI
+  // TODO: optimize, validate
+  transition(MI_W, {GETS, GETM, PUTS_NotLast, PUTS_Last, PUTM_Owner, PUTM_NotOwner, Data}, MI_W) {
+    z_stall;
+  }
+  transition(MI_W, {Memory_Ack}, I) {
+    la_sendWriteBackAck;
+    w_deallocateTBE;
+    qm_popMemQueue;
   }
 
   // From S_D

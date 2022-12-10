@@ -610,12 +610,14 @@ machine(L1Cache, "MSI L1 Cache")
 
   // From I
   transition(I, Load, IS_D) {
+    p_profileMiss;
     i_allocateL1CacheBlock;
     v_allocateTBE;
     as_issueGetS;
     m_popMandatoryQueue;
   }
   transition(I, Store, IM_AD) {
+    p_profileMiss;
     i_allocateL1CacheBlock;
     v_allocateTBE;
     am_issueGetM;
@@ -677,6 +679,7 @@ machine(L1Cache, "MSI L1 Cache")
     m_popMandatoryQueue;
   }
   transition(S, {Store}, SM_AD) {
+    p_profileMiss;
     v_allocateTBE;
     am_issueGetM;
     m_popMandatoryQueue;
@@ -760,6 +763,7 @@ machine(L1Cache, "MSI L1 Cache")
     o_popForwardedRequestQueue;
   }
   transition(M, {Fwd_GetM}, I) {
+    forward_eviction_to_cpu;
     e_sendDataFromCacheToRequestor;
     h_deallocateL1CacheBlock;
     o_popForwardedRequestQueue;
@@ -779,9 +783,9 @@ machine(L1Cache, "MSI L1 Cache")
     o_popForwardedRequestQueue;
   }
   transition(MI_A, {WB_Ack}, I) {
+    forward_eviction_to_cpu;
     w_deallocateTBE;
     o_popForwardedRequestQueue;
-    forward_eviction_to_cpu;
   }
 
   // From SI_A
@@ -793,9 +797,9 @@ machine(L1Cache, "MSI L1 Cache")
     o_popForwardedRequestQueue;
   }
   transition(SI_A, {WB_Ack}, I) {
+    forward_eviction_to_cpu;
     w_deallocateTBE;
     o_popForwardedRequestQueue;
-    forward_eviction_to_cpu;
   }
 
   // From II_A
@@ -803,8 +807,8 @@ machine(L1Cache, "MSI L1 Cache")
     z_stall;
   }
   transition(II_A, {WB_Ack}, I) {
+    forward_eviction_to_cpu;
     w_deallocateTBE;
     o_popForwardedRequestQueue;
-    forward_eviction_to_cpu;
   }
 }
