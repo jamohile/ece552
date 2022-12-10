@@ -43,6 +43,8 @@ machine(L1Cache, "MSI L1 Cache")
     //=====================
 
     I, AccessPermission:Invalid, desc="Not Present/Invalid";
+    S, AccessPermission:Read_Only, desc="Shared. Data can be read but not written.";
+    M, AccessPermission:Read_Write, desc="Modified. Data can be read or written.";
 
     /* ECE552: Complete this section here */
    
