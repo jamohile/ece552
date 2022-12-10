@@ -781,6 +781,7 @@ machine(L1Cache, "MSI L1 Cache")
   transition(MI_A, {WB_Ack}, I) {
     w_deallocateTBE;
     o_popForwardedRequestQueue;
+    forward_eviction_to_cpu;
   }
 
   // From SI_A
@@ -794,6 +795,7 @@ machine(L1Cache, "MSI L1 Cache")
   transition(SI_A, {WB_Ack}, I) {
     w_deallocateTBE;
     o_popForwardedRequestQueue;
+    forward_eviction_to_cpu;
   }
 
   // From II_A
@@ -803,5 +805,6 @@ machine(L1Cache, "MSI L1 Cache")
   transition(II_A, {WB_Ack}, I) {
     w_deallocateTBE;
     o_popForwardedRequestQueue;
+    forward_eviction_to_cpu;
   }
 }
