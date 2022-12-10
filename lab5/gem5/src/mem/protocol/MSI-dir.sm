@@ -547,4 +547,24 @@ getDirectoryEntry(address).Sharers);
   transition(I, {PUTS_NotLast, PUTM_NotOwner}, I) {
     a_sendWriteBackAck;
   }
+
+  // From S
+  transition(S, {GETS}, S) {
+    ds_sendSharedData;
+    ars2_addRequestorToSharers;
+  }
+  transition(S, {GETM}, M) {
+    ds2_sendSharedData;
+    fwm_sendFwdInvToSharersMinusRequestor;
+    cs_clearSharers;
+    e_ownerIsRequestor;
+  }
+  transition(S, {PUTS_NotLast, PUTM_NotOwner}, S) {
+    kk_removeRequestSharer;
+    a_sendWriteBackAck;
+  }
+  transition(S, {PUTS_Last}, I) {
+    kk_removeRequestSharer;
+    a_sendWriteBackAck;
+  }
 }
