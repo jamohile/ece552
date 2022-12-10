@@ -573,7 +573,7 @@ getDirectoryEntry(address).Sharers);
     vv_allocateTBEFromRequestNet;
     f_forwardRequest;
     aos_addOwnertoSharers;
-    ars_addRequestorToSharers;
+    ars2_addRequestorToSharers;
     c_clearOwner;
   }
   transition(M, {GETM}, M) {
@@ -590,7 +590,7 @@ getDirectoryEntry(address).Sharers);
   }
 
   // From S_D
-  transition(S_D, {GETS, PUTS}, S_D) {
+  transition(S_D, {GETS, GETM}, S_D) {
     z_stall;
   }
   transition(S_D, {PUTS_NotLast, PUTS_Last, PUTM_NotOwner}, S_D) {
