@@ -570,6 +570,7 @@ getDirectoryEntry(address).Sharers);
 
   // From M
   transition(M, {GETS}, S_D) {
+    vv_allocateTBEFromRequestNet;
     f_forwardRequest;
     aos_addOwnertoSharers;
     ars_addRequestorToSharers;
@@ -586,5 +587,18 @@ getDirectoryEntry(address).Sharers);
     pl_writeDataToDirectory;
     c_clearOwner;
     a_sendWriteBackAck;
+  }
+
+  // From S_D
+  transition(S_D, {GETS, PUTS}, S_D) {
+    z_stall;
+  }
+  transition(S_D, {PUTS_NotLast, PUTS_Last, PUTM_NotOwner}, S_D) {
+    kk_removeRequestSharer;
+    a_sendWriteBackAck;
+  }
+  transition(S_D, {Data}, S) {
+    pl2_writeDataToDirectory;
+    w_deallocateTBE;
   }
 }
