@@ -55,10 +55,10 @@ machine(L1Cache, "MSI L1 Cache")
     IM_AD, AccessPermission:Busy, desc="Waiting for rw data and acknowledgement.";
     IM_A, AccessPermission:Busy, desc="Waiting for rw acknowledgement.";
     // I think this exists because it is possible that someone else got M, but we haven't gotten invalidation yet.
-    SM_AD, AccessPermission:Read_Only, desc="Waiting for upgrade acknowledgement and data.";
-    SM_A, AccessPermission:Read_Only, desc="Waiting for upgrade acknowledgement.";
-    MI_A, AccessPermission:Read_Only, desc="Waiting for eviction ack.";
-    SI_A, AccessPermission:Read_Only, desc="Waiting for eviction ack, from S.";
+    SM_AD, AccessPermission:Busy, desc="Waiting for upgrade acknowledgement and data.";
+    SM_A, AccessPermission:Busy, desc="Waiting for upgrade acknowledgement.";
+    MI_A, AccessPermission:Busy, desc="Waiting for eviction ack.";
+    SI_A, AccessPermission:Busy, desc="Waiting for eviction ack, from S.";
     II_A, AccessPermission:Busy, desc="Waiting for ack to drop to I.";
   }
 

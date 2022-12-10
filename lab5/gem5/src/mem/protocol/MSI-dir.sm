@@ -52,11 +52,11 @@ machine(Directory, "Directory protocol")
 
     // Async due to a memory writeback.
     // TODO: SDM
-    MI_W, AccessPermission:Read_Only, desc="Writing back to memory.";
+    MI_W, AccessPermission:Busy, desc="Writing back to memory.";
 
     // Check permission.
-    S_D, AccessPermission:Read_Only, desc="Downgrading from M to S.";
-    SDS_W, AccessPermission:Read_Only, desc="Writing back recieved data."; 
+    S_D, AccessPermission:Busy, desc="Downgrading from M to S.";
+    SDS_W, AccessPermission:Busy, desc="Writing back recieved data."; 
   }
 
   // =============================================================================
