@@ -629,4 +629,25 @@ machine(L1Cache, "MSI L1 Cache")
     w_deallocateTBE;
     rx_load_hit;
   }
+
+  // From IM_AD
+  transition(IM_AD, {Load, Store, Replacement, Fwd_GetS, Fwd_GetM}, IM_AD) {
+    z_stall;
+  }
+  // If we got all acks already, but not data, we'd still be here.
+  // Thus, if we see (...Last), then all acks satisfied.
+  transition(IM_AD, {Data_from_Dir_No_Acks, Data_from_Dir_Ack_Cnt_Last, Data_from_Owner}, M) {
+    u_writeDataToCache;
+    w_deallocateTBE;
+    sx_store_hit;
+  }
+  // As soon as we get data, all we need is acks.
+  transition(IM_AD, {Data_from_Dir_Ack_Cnt}, IM_A) {
+    u_writeDataToCache;
+    q_updateAckCount;
+  }
+  // No matter how many acks we get while here, we still need data.
+  transition(IM_AD, {Inv_Ack}, IM_AD) {
+    q_updateAckCount;
+  }
 }
