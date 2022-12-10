@@ -650,4 +650,16 @@ machine(L1Cache, "MSI L1 Cache")
   transition(IM_AD, {Inv_Ack}, IM_AD) {
     q_updateAckCount;
   }
+
+  // From IM_A
+  transition(IM_A, {Load, Store, Replacement, Fwd_GetS, Fwd_GetM}, IM_A) {
+    z_stall;
+  }
+  transition(IM_A, {Inv_Ack}, IM_A) {
+    q_updateAckCount;
+  }
+  transition(IM_A, {Inv_Ack_all}, M) {
+    w_deallocateTBE;
+    sx_store_hit;
+  }
 }
